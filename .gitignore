@@ -1,0 +1,20 @@
+# ── secrets — never commit ──────────────────────────
+.env
+web/.env.local
+OPERATOR-PASSPHRASE.txt
+
+# ── dependencies & build output ─────────────────────
+node_modules/
+web/.next/
+web/next-env.d.ts
+worker/.venv/
+__pycache__/
+*.pyc
+
+# ── misc ────────────────────────────────────────────
+.DS_Store
+nohup.out
+
+# editor backups of env files
+.env.save
+.env.*.bak

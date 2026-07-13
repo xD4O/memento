@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+:root {
+  --ground: #07090d;
+  --panel: #0c1016;
+  --panel-2: #0f141c;
+  --line: rgba(255, 180, 84, 0.22);
+  --line-dim: rgba(140, 160, 190, 0.14);
+  --amber: #ffb454;
+  --amber-dim: rgba(255, 180, 84, 0.55);
+  --cyan: #59d2de;
+  --red: #e5484d;
+  --text: #c6cfd9;
+  --text-bright: #eaf0f6;
+  --dim: #647080;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  background: var(--ground);
+  color-scheme: dark;
+}
+
+/* Theme presets: accent swaps only — layout stamps data-theme from user settings.
+   Default (no attribute) is Terminal Amber. */
+html[data-theme="cryo"] {
+  --amber: #59d2de;
+  --amber-dim: rgba(89, 210, 222, 0.55);
+  --line: rgba(89, 210, 222, 0.22);
+  --cyan: #ffb454;
+}
+html[data-theme="botanic"] {
+  --amber: #8fd97c;
+  --amber-dim: rgba(143, 217, 124, 0.55);
+  --line: rgba(143, 217, 124, 0.22);
+}
+html[data-theme="nebula"] {
+  --amber: #b48cff;
+  --amber-dim: rgba(180, 140, 255, 0.55);
+  --line: rgba(180, 140, 255, 0.22);
+}
+
+body {
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* standalone PWA: respect notches and home indicators */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+header.sticky-hud {
+  padding-top: calc(0.625rem + env(safe-area-inset-top));
+}
+
+.mono {
+  font-family: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+}
+
+.label {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.15em 0.6em;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amber);
+  white-space: nowrap;
+}
+.chip.cyan { color: var(--cyan); border-color: rgba(89, 210, 222, 0.35); }
+.chip.dim { color: var(--dim); border-color: var(--line-dim); }
+.chip.red { color: var(--red); border-color: rgba(229, 72, 77, 0.4); }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line-dim);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.55em 1.3em;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--amber);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.btn:hover, .btn:focus-visible { background: rgba(255, 180, 84, 0.1); color: var(--text-bright); }
+.btn.danger { color: var(--red); border-color: rgba(229, 72, 77, 0.4); }
+.btn.danger:hover { background: rgba(229, 72, 77, 0.1); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.rec-dot {
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 50%;
+  background: var(--red);
+  animation: blink 1.4s steps(2, start) infinite;
+}
+@keyframes blink { 50% { opacity: 0.15; } }
+
+@keyframes pulse-amber { 50% { opacity: 0.45; } }
+.pulse { animation: pulse-amber 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-dot, .pulse { animation: none; }
+}
+
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+::selection { background: rgba(255, 180, 84, 0.25); }
+
+.transcript-seg { cursor: pointer; border-left: 2px solid transparent; }
+.transcript-seg:hover { border-left-color: var(--line-dim); background: var(--panel-2); }
+.transcript-seg.active { border-left-color: var(--amber); background: var(--panel-2); }
+.transcript-seg.active .seg-time { color: var(--amber); }

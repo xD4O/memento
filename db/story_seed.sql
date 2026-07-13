@@ -1,0 +1,27 @@
+-- Life Story interview program — seeded once; agent works through these over weeks.
+INSERT INTO story_topics (user_id, chapter, prompt, ord) VALUES
+('00000000-0000-0000-0000-000000000001', 'Origins',       'Where did you grow up, and what did it look, sound, and smell like?', 1),
+('00000000-0000-0000-0000-000000000001', 'Origins',       'What is your earliest clear memory?', 2),
+('00000000-0000-0000-0000-000000000001', 'Origins',       'What were you like as a kid — and what did adults get wrong about you?', 3),
+('00000000-0000-0000-0000-000000000001', 'Family',        'Tell the story of your parents — who they are, how they got here.', 10),
+('00000000-0000-0000-0000-000000000001', 'Family',        'What did your family teach you without ever saying it out loud?', 11),
+('00000000-0000-0000-0000-000000000001', 'Family',        'Who in your family do you wish you had asked more questions?', 12),
+('00000000-0000-0000-0000-000000000001', 'People',        'Who was your first real friend, and what happened to them?', 20),
+('00000000-0000-0000-0000-000000000001', 'People',        'Tell the story of meeting your wife.', 21),
+('00000000-0000-0000-0000-000000000001', 'People',        'Who changed the direction of your life just by being in it?', 22),
+('00000000-0000-0000-0000-000000000001', 'Turning Points','What is a decision you made that split your life into before and after?', 30),
+('00000000-0000-0000-0000-000000000001', 'Turning Points','Tell the story of a time you failed at something that mattered.', 31),
+('00000000-0000-0000-0000-000000000001', 'Turning Points','What is the biggest risk you ever took?', 32),
+('00000000-0000-0000-0000-000000000001', 'Work & Craft',  'How did you end up doing what you do?', 40),
+('00000000-0000-0000-0000-000000000001', 'Work & Craft',  'What is the piece of work you are proudest of, and why?', 41),
+('00000000-0000-0000-0000-000000000001', 'Work & Craft',  'What do you know about your craft that took years to learn?', 42),
+('00000000-0000-0000-0000-000000000001', 'Beliefs',       'What do you believe that most people around you do not?', 50),
+('00000000-0000-0000-0000-000000000001', 'Beliefs',       'What did you used to believe that turned out to be wrong?', 51),
+('00000000-0000-0000-0000-000000000001', 'Joys',          'What place makes you feel most alive, and what happened there?', 60),
+('00000000-0000-0000-0000-000000000001', 'Joys',          'What is something you love that you rarely get to talk about?', 61),
+('00000000-0000-0000-0000-000000000001', 'Hardship',      'What is the hardest thing you have lived through?', 70),
+('00000000-0000-0000-0000-000000000001', 'Hardship',      'What loss shaped you the most?', 71),
+('00000000-0000-0000-0000-000000000001', 'Future',        'What do you want your life to look like in ten years?', 80),
+('00000000-0000-0000-0000-000000000001', 'Future',        'What do you want the people who come after you to know?', 81),
+('00000000-0000-0000-0000-000000000001', 'Future',        'If Memento keeps every word of this, what should it never let you forget?', 82)
+ON CONFLICT (user_id, prompt) DO NOTHING;

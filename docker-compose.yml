@@ -1,0 +1,57 @@
+name: memento
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_USER: memento
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: memento
+      TZ: America/New_York
+      PGTZ: America/New_York
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memento -d memento"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9401"
+    ports:
+      - "127.0.0.1:9400:9000"
+      - "127.0.0.1:9401:9401"
+    environment:
+      MINIO_ROOT_USER: memento
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set in .env}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    restart: unless-stopped
+    command: serve --cache-file /var/cache/ntfy/cache.db
+    ports:
+      # localhost (briefing script) + tailnet (phone subscription) only
+      - "127.0.0.1:8744:80"
+      - "${NTFY_BIND_IP:-127.0.0.1}:8744:80"
+    environment:
+      TZ: America/New_York
+    volumes:
+      - ntfycache:/var/cache/ntfy
+
+volumes:
+  pgdata:
+  miniodata:
+  ntfycache:

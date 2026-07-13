@@ -1,0 +1,693 @@
+<title>MEMENTO — Mission Plan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --ground:#07090D;
+    --panel:#0C1016;
+    --panel-2:#0F141C;
+    --line:rgba(255,180,84,.22);
+    --line-dim:rgba(140,160,190,.14);
+    --amber:#FFB454;
+    --amber-dim:rgba(255,180,84,.55);
+    --cyan:#59D2DE;
+    --cyan-dim:rgba(89,210,222,.5);
+    --red:#E5484D;
+    --text:#C6CFD9;
+    --text-bright:#EAF0F6;
+    --dim:#647080;
+    --mono:"JetBrains Mono","SFMono-Regular","Cascadia Code",ui-monospace,Menlo,Consolas,monospace;
+    --body:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+    --maxw:980px;
+  }
+  html{background:var(--ground);color-scheme:dark}
+  body{
+    margin:0;background:var(--ground);color:var(--text);
+    font-family:var(--body);font-size:16px;line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:rgba(255,180,84,.25)}
+  a{color:var(--cyan);text-decoration:none;border-bottom:1px solid var(--cyan-dim)}
+  a:hover,a:focus-visible{color:var(--text-bright);border-bottom-color:var(--text-bright)}
+  :focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:2px}
+
+  /* ── status bar ─────────────────────────────── */
+  .statusbar{
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;
+    padding:.65rem 1.25rem;
+    background:rgba(7,9,13,.92);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;
+    color:var(--dim);text-transform:uppercase;
+  }
+  .statusbar .mark{color:var(--amber);font-weight:700;letter-spacing:.28em}
+  .statusbar .sep{color:rgba(100,112,128,.4)}
+  .statusbar .spacer{flex:1}
+  .rec{display:inline-flex;align-items:center;gap:.45em;color:var(--red);font-weight:600}
+  .rec i{width:.55em;height:.55em;border-radius:50%;background:var(--red);animation:blink 1.4s steps(2,start) infinite}
+  @keyframes blink{50%{opacity:.15}}
+  .chip{
+    display:inline-block;padding:.15em .6em;border:1px solid var(--line);
+    color:var(--amber);border-radius:2px;font-family:var(--mono);
+    font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;
+  }
+  .chip.cyan{color:var(--cyan);border-color:rgba(89,210,222,.35)}
+  .chip.dim{color:var(--dim);border-color:var(--line-dim)}
+
+  /* ── hero ───────────────────────────────────── */
+  .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+  .hero canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .hero .scan{
+    position:absolute;inset:0;pointer-events:none;opacity:.05;
+    background:repeating-linear-gradient(0deg,transparent 0 2px,#fff 2px 3px);
+  }
+  .hero-inner{
+    position:relative;max-width:var(--maxw);margin:0 auto;
+    padding:6.5rem 1.5rem 5rem;
+  }
+  .stamp{
+    font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;
+    color:var(--amber-dim);text-transform:uppercase;margin:0 0 1.4rem;
+  }
+  h1.wordmark{
+    margin:0;font-family:var(--mono);font-weight:800;
+    font-size:clamp(2.6rem,8vw,5.2rem);letter-spacing:.3em;
+    color:var(--text-bright);text-wrap:balance;line-height:1.05;
+    text-shadow:0 0 34px rgba(255,180,84,.18);
+  }
+  .thesis{
+    margin:1.6rem 0 0;max-width:34ch;
+    font-size:clamp(1.15rem,2.6vw,1.5rem);color:var(--text-bright);
+    font-weight:300;line-height:1.45;text-wrap:balance;
+  }
+  .hero p.sub{max-width:62ch;color:var(--text);margin:1.2rem 0 0}
+  .hero .refs{margin-top:2.2rem;display:flex;gap:.6rem;flex-wrap:wrap}
+
+  /* ── layout / sections ──────────────────────── */
+  main{max-width:var(--maxw);margin:0 auto;padding:0 1.5rem 6rem}
+  section.log{margin-top:4.5rem}
+  .sec-head{display:flex;align-items:baseline;gap:1rem;border-bottom:1px solid var(--line);padding-bottom:.7rem;margin-bottom:1.6rem}
+  .sec-head .num{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;color:var(--amber)}
+  .sec-head h2{
+    margin:0;font-family:var(--mono);font-size:1.02rem;font-weight:700;
+    letter-spacing:.24em;text-transform:uppercase;color:var(--text-bright);text-wrap:balance;
+  }
+  .sec-head .tag{margin-left:auto;font-family:var(--mono);font-size:.66rem;letter-spacing:.16em;color:var(--dim);text-transform:uppercase;white-space:nowrap}
+  section.log>p{max-width:68ch}
+  .callout{
+    border:1px solid var(--line);background:var(--panel);
+    padding:1rem 1.25rem;margin:1.4rem 0;position:relative;
+  }
+  .callout::before,.callout::after{
+    content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  }
+  .callout::before{top:-1px;left:-1px;border-top:2px solid var(--amber);border-left:2px solid var(--amber)}
+  .callout::after{bottom:-1px;right:-1px;border-bottom:2px solid var(--amber);border-right:2px solid var(--amber)}
+  .callout .k{font-family:var(--mono);font-size:.68rem;letter-spacing:.18em;color:var(--amber);text-transform:uppercase;display:block;margin-bottom:.35rem}
+  .callout p{margin:.25rem 0;max-width:68ch}
+
+  /* principles */
+  .rules{display:grid;gap:1px;background:var(--line-dim);border:1px solid var(--line-dim)}
+  .rule{background:var(--panel);padding:1.1rem 1.25rem;display:grid;grid-template-columns:3.2rem 1fr;gap:1rem}
+  .rule .n{font-family:var(--mono);color:var(--amber);font-size:.8rem;letter-spacing:.1em;padding-top:.2rem}
+  .rule h3{margin:0 0 .3rem;font-size:1rem;color:var(--text-bright);font-weight:600}
+  .rule p{margin:0;max-width:62ch;color:var(--text)}
+
+  /* architecture diagram */
+  .arch{display:flex;flex-direction:column;gap:0;font-family:var(--mono)}
+  .node{
+    border:1px solid var(--line-dim);background:var(--panel);
+    padding:.9rem 1.1rem;position:relative;
+  }
+  .node .t{font-size:.72rem;letter-spacing:.18em;color:var(--text-bright);text-transform:uppercase;font-weight:700}
+  .node .d{font-family:var(--body);font-size:.86rem;color:var(--dim);margin-top:.3rem;line-height:1.5}
+  .node .bits{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.7rem}
+  .bit{font-size:.64rem;letter-spacing:.08em;color:var(--text);border:1px solid var(--line-dim);background:var(--panel-2);padding:.2em .55em;border-radius:2px;white-space:nowrap}
+  .bit.hot{color:var(--amber);border-color:var(--line)}
+  .bit.cy{color:var(--cyan);border-color:rgba(89,210,222,.3)}
+  .flow{
+    display:flex;justify-content:space-around;gap:1rem;
+    font-size:.64rem;letter-spacing:.12em;color:var(--dim);
+    text-transform:uppercase;padding:.55rem 0;
+  }
+  .flow span::before{content:"▼ ";color:var(--amber-dim)}
+  .arch .pair{display:grid;grid-template-columns:1fr 1.4fr;gap:.8rem}
+  .node.gw{border-color:var(--line)}
+  .node.dgx{border-color:rgba(89,210,222,.35)}
+  .node.dgx .t{color:var(--cyan)}
+  .cloudline{
+    display:flex;align-items:center;gap:.6rem;justify-content:flex-end;
+    font-size:.64rem;letter-spacing:.12em;color:var(--dim);text-transform:uppercase;
+    padding:.55rem 0;
+  }
+  .cloudline b{color:var(--amber);font-weight:600}
+  @media(max-width:680px){.arch .pair{grid-template-columns:1fr}}
+
+  /* data model table */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line-dim)}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:.88rem}
+  th{
+    font-family:var(--mono);font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--amber);text-align:left;padding:.7rem 1rem;
+    border-bottom:1px solid var(--line);background:var(--panel);
+  }
+  td{padding:.65rem 1rem;border-bottom:1px solid var(--line-dim);vertical-align:top;background:var(--panel)}
+  tr:last-child td{border-bottom:none}
+  td.ent{font-family:var(--mono);font-size:.8rem;color:var(--text-bright);white-space:nowrap}
+  td .f{color:var(--dim);font-size:.8rem}
+
+  /* ladder */
+  .ladder{display:flex;flex-direction:column;gap:.55rem;margin:1.4rem 0}
+  .lvl{
+    border:1px solid var(--line-dim);background:var(--panel);
+    padding:.8rem 1.1rem;display:grid;grid-template-columns:4.5rem 11rem 1fr;gap:1rem;align-items:baseline;
+  }
+  .lvl .id{font-family:var(--mono);font-size:.78rem;color:var(--cyan);letter-spacing:.12em}
+  .lvl .nm{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-bright)}
+  .lvl .ex{color:var(--dim);font-size:.88rem;font-style:italic}
+  .lvl:nth-child(1){margin-inline-end:18%}
+  .lvl:nth-child(2){margin-inline:3% 12%}
+  .lvl:nth-child(3){margin-inline:6% 6%}
+  .lvl:nth-child(4){margin-inline:9% 0;border-color:var(--line)}
+  @media(max-width:680px){.lvl{grid-template-columns:3.4rem 1fr}.lvl .ex{grid-column:1/-1}.lvl{margin-inline:0!important}}
+
+  /* mission tape (roadmap) */
+  .tape{position:relative;margin-top:2rem;padding-left:2.2rem}
+  .tape::before{content:"";position:absolute;left:.55rem;top:.4rem;bottom:.4rem;width:1px;background:linear-gradient(var(--amber-dim),var(--cyan-dim))}
+  .phase{position:relative;margin-bottom:2.6rem}
+  .phase::before{
+    content:"";position:absolute;left:-2.05rem;top:.5rem;width:11px;height:11px;
+    background:var(--ground);border:2px solid var(--amber);transform:rotate(45deg);
+  }
+  .phase.horizon::before{border-color:var(--cyan)}
+  .phase .ph-head{display:flex;align-items:baseline;gap:.9rem;flex-wrap:wrap}
+  .phase .ph-num{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;color:var(--amber)}
+  .phase.horizon .ph-num{color:var(--cyan)}
+  .phase h3{margin:0;font-family:var(--mono);font-size:1rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-bright)}
+  .phase .dur{font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;color:var(--dim);border:1px solid var(--line-dim);padding:.12em .55em;border-radius:2px;white-space:nowrap}
+  .phase p{max-width:66ch;margin:.6rem 0}
+  .exit{
+    font-size:.92rem;margin-top:.6rem;padding:.55rem .9rem;
+    border-left:2px solid var(--amber);background:var(--panel);color:var(--text);
+  }
+  .exit b{font-family:var(--mono);font-size:.66rem;letter-spacing:.18em;color:var(--amber);text-transform:uppercase;font-weight:700;margin-right:.5em}
+  .phase.horizon .exit{border-left-color:var(--cyan)}
+  .phase.horizon .exit b{color:var(--cyan)}
+
+  /* UI reference cards */
+  .refsgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:.8rem}
+  .refcard{border:1px solid var(--line-dim);background:var(--panel);padding:1rem 1.1rem}
+  .refcard .sw{height:6px;margin:-1rem -1.1rem 0.9rem}
+  .refcard h3{margin:0 0 .35rem;font-family:var(--mono);font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-bright)}
+  .refcard p{margin:0;font-size:.88rem;color:var(--dim)}
+  .sw.martian{background:linear-gradient(90deg,#C1440E,#FFB454)}
+  .sw.inter{background:linear-gradient(90deg,#1B2735,#C6CFD9)}
+  .sw.moon{background:linear-gradient(90deg,#3A2E1E,#FFD9A0)}
+  .sw.avatar{background:linear-gradient(90deg,#0E3B4E,#59D2DE)}
+
+  /* variants */
+  .vars{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.8rem}
+  .var{border:1px solid var(--line-dim);background:var(--panel);padding:1.15rem 1.2rem;display:flex;flex-direction:column;gap:.55rem}
+  .var.chosen{border-color:var(--amber);box-shadow:0 0 26px rgba(255,180,84,.08)}
+  .var h3{margin:0;font-family:var(--mono);font-size:.8rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-bright);display:flex;align-items:center;gap:.6rem}
+  .var p{margin:0;font-size:.9rem;color:var(--text)}
+  .var .when{font-size:.82rem;color:var(--dim)}
+  .var .when b{font-family:var(--mono);font-size:.62rem;letter-spacing:.16em;color:var(--amber-dim);text-transform:uppercase;font-weight:700}
+
+  /* checklist */
+  ul.check{list-style:none;padding:0;margin:1rem 0;max-width:70ch}
+  ul.check li{padding:.45rem 0 .45rem 1.9rem;position:relative;border-bottom:1px dashed var(--line-dim)}
+  ul.check li::before{
+    content:"■";position:absolute;left:.25rem;top:.5rem;
+    color:var(--amber);font-size:.6rem;line-height:1.8;
+  }
+  ol.watch{margin:1rem 0;padding-left:1.4rem;max-width:68ch}
+  ol.watch li{margin:.55rem 0}
+  ol.watch li::marker{font-family:var(--mono);color:var(--amber);font-size:.8rem}
+
+  /* cost + confidence */
+  .figs{display:flex;gap:.8rem;flex-wrap:wrap;margin:1.2rem 0}
+  .fig{border:1px solid var(--line-dim);background:var(--panel);padding:.9rem 1.2rem;min-width:180px;flex:1}
+  .fig .v{font-family:var(--mono);font-size:1.35rem;color:var(--text-bright);font-variant-numeric:tabular-nums}
+  .fig .l{font-family:var(--mono);font-size:.62rem;letter-spacing:.16em;color:var(--dim);text-transform:uppercase;margin-top:.3rem}
+  .meter{margin:1.2rem 0 .4rem;max-width:560px}
+  .meter .bar{height:8px;background:var(--panel-2);border:1px solid var(--line-dim);position:relative}
+  .meter .fill{position:absolute;inset:0;width:85%;background:linear-gradient(90deg,rgba(255,180,84,.35),var(--amber))}
+  .meter .lbl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.64rem;letter-spacing:.14em;color:var(--dim);text-transform:uppercase;margin-top:.4rem}
+  .meter .lbl b{color:var(--amber)}
+
+  footer{
+    border-top:1px solid var(--line);margin-top:5rem;padding:1.4rem 1.5rem 2.5rem;
+    font-family:var(--mono);font-size:.66rem;letter-spacing:.14em;color:var(--dim);
+    text-transform:uppercase;display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:space-between;
+    max-width:var(--maxw);margin-inline:auto;box-sizing:border-box;
+  }
+  @media (prefers-reduced-motion:reduce){
+    .rec i{animation:none}
+    *{scroll-behavior:auto!important}
+  }
+</style>
+
+<header class="statusbar">
+  <span class="mark">MEMENTO</span>
+  <span class="sep">//</span>
+  <span>Mission&nbsp;Plan&nbsp;V2.0&nbsp;·&nbsp;Status&nbsp;Report</span>
+  <span class="sep">//</span>
+  <span>SOL&nbsp;002&nbsp;·&nbsp;2026-07-12</span>
+  <span class="spacer"></span>
+  <span class="chip">Build:&nbsp;Hybrid</span>
+  <span class="chip cyan">Status:&nbsp;Operational</span>
+  <span class="rec"><i></i>REC</span>
+</header>
+
+<div class="hero">
+  <canvas id="sky" aria-hidden="true"></canvas>
+  <div class="scan" aria-hidden="true"></div>
+  <div class="hero-inner">
+    <p class="stamp">Personal Log · SOL 002 · Status Report — Mission Underway</p>
+    <h1 class="wordmark">MEMENTO</h1>
+    <p class="thesis">A live journal you talk to — and it remembers everything.</p>
+    <p class="sub">
+      This is no longer a plan — it runs today on the operator's own hardware. Record video
+      log entries or speak with a full-duplex live agent that listens, responds in real time,
+      asks progressively deeper questions, and builds rapport across sessions. Every entry is
+      transcribed, indexed, cataloged, and reflected upon; the journal answers questions,
+      compiles your days and weeks, sends messages through time, and is learning to see.
+      The final form — a photoreal human presence — waits on the research frontier.
+    </p>
+    <div class="refs">
+      <span class="chip dim">The Martian</span>
+      <span class="chip dim">Avatar</span>
+      <span class="chip dim">Interstellar</span>
+      <span class="chip dim">Moon (2009)</span>
+    </div>
+  </div>
+</div>
+
+<main>
+
+  <section class="log" id="status-report">
+    <div class="sec-head"><span class="num">◍</span><h2>Status Report — What Exists Today</h2><span class="tag">2026-07-12 · two days of building</span></div>
+
+    <p><strong style="color:var(--text-bright)">Operational.</strong> Memento runs as a
+    self-healing appliance on the operator's DGX: production build, systemd services that
+    survive reboots and crashes, passphrase-gated, encrypted nightly backups, installable
+    on the phone as a PWA over Tailscale.</p>
+
+    <div class="callout" style="margin-top:1.6rem">
+      <span class="k">Shipped Capabilities</span>
+      <p style="line-height:2.1">
+        <span class="chip dim">video &amp; audio log entries</span>
+        <span class="chip dim">Martian HUD overlay</span>
+        <span class="chip dim">word-level transcription</span>
+        <span class="chip dim">semantic + keyword search</span>
+        <span class="chip dim">Ask-your-journal Q&amp;A</span>
+        <span class="chip dim">concept catalog</span>
+        <span class="chip dim">memory starmap</span>
+        <span class="chip dim">full-duplex live agent</span>
+        <span class="chip dim">recorded sessions</span>
+        <span class="chip dim">Listen Mode (wake-word)</span>
+        <span class="chip dim">presence ring</span>
+        <span class="chip dim">question ladder + rapport profile</span>
+        <span class="chip dim">threads (open loops)</span>
+        <span class="chip dim">pins &amp; reminders</span>
+        <span class="chip dim">time capsules</span>
+        <span class="chip dim">Life Story program</span>
+        <span class="chip dim">visual log (local VLM)</span>
+        <span class="chip dim">mission calendar + day reports</span>
+        <span class="chip dim">weekly debriefs</span>
+        <span class="chip dim">narrated recap videos</span>
+        <span class="chip dim">mood &amp; stats dashboard</span>
+        <span class="chip dim">morning briefings (push)</span>
+        <span class="chip dim">export archive</span>
+        <span class="chip dim">auth + account management</span>
+        <span class="chip dim">encrypted backups</span>
+      </p>
+    </div>
+
+    <div class="callout">
+      <span class="k">What Remains</span>
+      <p>◪ Offsite backup destination (encrypted bundles stage locally; needs a target) ·
+      ◪ voice-only quick capture · ◪ native mobile app (Expo) when the PWA's limits chafe ·
+      ◪ <strong style="color:var(--text-bright)">the face</strong> — photoreal presence,
+      blocked only on research (see below).</p>
+    </div>
+
+    <div class="callout">
+      <span class="k">Where To Go From Here</span>
+      <p><strong style="color:var(--text-bright)">Near:</strong> live in it — daily entries
+      and sessions are what feed the debriefs, starmap, profile, and Life Story. Pick an
+      offsite backup target.</p>
+      <p><strong style="color:var(--text-bright)">Mid:</strong> quick-capture memos, the Expo
+      app, deeper trends as months of data accumulate (year-in-review at SOL 365).</p>
+      <p><strong style="color:var(--text-bright)">Far:</strong> the Wan-Streamer-class
+      photoreal avatar (paper 2606.25041) — full-duplex audio+video presence. The renderer
+      boundary in the live console is already built to receive it; the moment open weights
+      exist, Memento gets its face.</p>
+    </div>
+  </section>
+
+  <section class="log" id="north-star">
+    <div class="sec-head"><span class="num">SEC 01</span><h2>North Star</h2></div>
+    <p>
+      The product <em>is</em> the memory plus the conversation. The avatar is presentation.
+      Every phase below must end with something used daily — habit before technology.
+    </p>
+  </section>
+
+  <section class="log" id="principles">
+    <div class="sec-head"><span class="num">SEC 02</span><h2>Design Principles</h2><span class="tag">Type-1 decisions</span></div>
+    <div class="rules">
+      <div class="rule"><span class="n">R-01</span><div>
+        <h3>Raw media is the source of truth</h3>
+        <p>Original video/audio files are immutable and sacred. Transcripts, embeddings, flags, and summaries are derived data — always rebuildable. This makes almost every other technical choice reversible.</p>
+      </div></div>
+      <div class="rule"><span class="n">R-02</span><div>
+        <h3>Provider-as-driver</h3>
+        <p>The live voice agent and the avatar renderer sit behind adapters in a session gateway. Cloud APIs today, local models tomorrow, end-to-end audio-video foundation models eventually — without touching the journal core.</p>
+      </div></div>
+      <div class="rule"><span class="n">R-03</span><div>
+        <h3>Single-user first, multi-tenant-shaped</h3>
+        <p>Every table has a user id, every storage path is user-prefixed, auth is an interface. No multi-tenant features, but no single-user assumptions baked into the data.</p>
+      </div></div>
+      <div class="rule"><span class="n">R-04</span><div>
+        <h3>Privacy gradient</h3>
+        <p>Transcripts, embeddings, index, and media never leave the DGX. Only the live voice stream transits the cloud provider, in zero-retention mode. The full-local variant is the permanent escape hatch.</p>
+      </div></div>
+      <div class="rule"><span class="n">R-05</span><div>
+        <h3>Habit before technology</h3>
+        <p>Each phase exits only when its deliverable is being used every day. A perfect avatar on an unused journal is a failure.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="log" id="architecture">
+    <div class="sec-head"><span class="num">SEC 03</span><h2>Architecture — Hybrid</h2><span class="tag">variants: sec 08</span></div>
+    <div class="arch">
+      <div class="node">
+        <span class="t">Client — Web PWA now · Mobile later</span>
+        <div class="d">Next.js · record console (MediaRecorder) · library &amp; timeline · live session UI</div>
+        <div class="bits">
+          <span class="bit">Record console</span><span class="bit">Mission timeline</span>
+          <span class="bit">Catalog browser</span><span class="bit cy">Avatar surface (swappable)</span>
+        </div>
+      </div>
+      <div class="flow"><span>HTTPS — uploads · search · CRUD</span><span>WebRTC / WS — live sessions</span></div>
+      <div class="pair">
+        <div class="node">
+          <span class="t">Core API</span>
+          <div class="d">Entries, search, flags, catalog, auth interface</div>
+        </div>
+        <div class="node gw">
+          <span class="t">Session Gateway — owns the conversation</span>
+          <div class="d">Provider drivers · tool calls into journal retrieval · prompting engine · session → entry</div>
+          <div class="bits">
+            <span class="bit hot">OpenAI Realtime</span><span class="bit">Gemini Live</span>
+            <span class="bit cy">Local S2S (later)</span>
+          </div>
+        </div>
+      </div>
+      <div class="cloudline">▲ only cloud touchpoint: realtime voice, <b>zero-retention mode</b></div>
+      <div class="node dgx">
+        <span class="t">DGX Spark — local &amp; private</span>
+        <div class="d">All memory, media, and intelligence stays on-box.</div>
+        <div class="bits">
+          <span class="bit">Postgres + pgvector</span><span class="bit">MinIO (S3) — raw media</span>
+          <span class="bit">faster-whisper</span><span class="bit">Embeddings</span>
+          <span class="bit">Ollama extraction — concepts · flags · summaries</span>
+          <span class="bit">Hybrid retrieval — vector + FTS + recency</span>
+          <span class="bit cy">Avatar renderer (phase 3+)</span>
+        </div>
+      </div>
+    </div>
+    <div class="callout">
+      <span class="k">Identified bottleneck</span>
+      <p>The retrieval-augmented live loop: the agent must pull journal context mid-conversation
+      inside a natural-speech latency budget. Addressed by pre-session context assembly (profile +
+      open threads + recent summaries loaded before the call), async tool calls for deep lookups,
+      and keeping all retrieval local — no network hop.</p>
+    </div>
+  </section>
+
+  <section class="log" id="data-model">
+    <div class="sec-head"><span class="num">SEC 04</span><h2>Data Model v1</h2></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Entity</th><th>Role</th><th>Key fields</th></tr></thead>
+      <tbody>
+        <tr><td class="ent">users</td><td>Multi-tenant-shaped from day one</td><td class="f">id · settings</td></tr>
+        <tr><td class="ent">entries</td><td>One log — video, audio, or live session</td><td class="f">kind · recorded_at · media_uri · status · sol_number · mood · auto title/summary</td></tr>
+        <tr><td class="ent">segments</td><td>Timed transcript chunks, both speakers</td><td class="f">t_start/t_end · speaker · text · embedding</td></tr>
+        <tr><td class="ent">annotations</td><td>Flags, highlights, action items, insights</td><td class="f">source: user | agent · label · note · time-range</td></tr>
+        <tr><td class="ent">concepts</td><td>People, places, projects, ideas, themes</td><td class="f">kind · embedding · salience per entry</td></tr>
+        <tr><td class="ent">threads</td><td>Open loops the agent follows up across sessions</td><td class="f">status: open | resolved</td></tr>
+        <tr><td class="ent">profile</td><td>The rapport model — always user-visible &amp; editable</td><td class="f">values · goals · people map · sensitivities · versioned</td></tr>
+        <tr><td class="ent">sessions</td><td>Live-agent session telemetry</td><td class="f">provider · cost · latency stats</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout">
+      <span class="k">Derived-data rule</span>
+      <p>Everything except users, entry media, and user-authored annotations can be wiped and
+      rebuilt from raw media.</p>
+    </div>
+  </section>
+
+  <section class="log" id="prompting">
+    <div class="sec-head"><span class="num">SEC 05</span><h2>Prompting Engine</h2><span class="tag">core differentiator — build</span></div>
+    <p>A question ladder with rapport state, not a static prompt. The agent earns depth from
+    engagement signals — answer length, disclosure, explicit invitation — and always
+    de-escalates on deflection.</p>
+    <div class="ladder">
+      <div class="lvl"><span class="id">L0</span><span class="nm">Check-in</span><span class="ex">“How was the day? What's on your mind?”</span></div>
+      <div class="lvl"><span class="id">L1</span><span class="nm">Concrete</span><span class="ex">“What happened with the demo?”</span></div>
+      <div class="lvl"><span class="id">L2</span><span class="nm">Reflective</span><span class="ex">“Third time this month you've mentioned feeling stretched — what's driving that?”</span></div>
+      <div class="lvl"><span class="id">L3</span><span class="nm">Depth — earned</span><span class="ex">Values, meaning, identity — only after rapport signals.</span></div>
+    </div>
+    <p>
+      <strong>Threads</strong> surface open loops from prior entries naturally, never as an
+      interrogation. The agent never fabricates memories — every reference to the past carries a
+      retrievable citation (entry + timestamp) the UI can jump to. Session end: the agent writes a
+      summary, updates threads, and proposes flags for the user to confirm or edit.
+    </p>
+    <div class="callout">
+      <span class="k">Guardrail</span>
+      <p>A journaling companion, not a therapist. Scope limits and crisis-resource deflection in
+      the system prompt; the agent's model of you (profile, threads) fully inspectable.</p>
+    </div>
+  </section>
+
+  <section class="log" id="roadmap">
+    <div class="sec-head"><span class="num">SEC 06</span><h2>Roadmap — Mission Tape</h2></div>
+    <div class="tape">
+      <div class="phase">
+        <div class="ph-head"><span class="ph-num">PHASE 00</span><h3>Foundation</h3><span class="chip cyan">shipped 07-11</span></div>
+        <p>Scaffold Next.js + Postgres/pgvector + MinIO on the DGX. Record console with webcam,
+        upload, faster-whisper transcription, timeline with playback and synced transcript.</p>
+        <div class="exit"><b>Exit ▸</b>You record a real entry daily and can reread it.</div>
+      </div>
+      <div class="phase">
+        <div class="ph-head"><span class="ph-num">PHASE 01</span><h3>The Log &amp; Catalog</h3><span class="chip cyan">shipped 07-11</span></div>
+        <p>Embeddings + hybrid search. Local-LLM extraction: concepts, auto-flags, summaries,
+        titles. Manual flags on the timeline scrubber, concept browse pages, SOL day counter,
+        export and nightly backups. Tailscale-only exposure.</p>
+        <div class="exit"><b>Exit ▸</b>Search “that idea about agent memory” and land on the exact video second.</div>
+      </div>
+      <div class="phase">
+        <div class="ph-head"><span class="ph-num">PHASE 02</span><h3>The Live Agent</h3><span class="chip cyan">shipped 07-11</span></div>
+        <p>Session gateway + OpenAI Realtime driver (Gemini Live as driver #2 to prove the
+        abstraction). WebRTC audio, barge-in, tool calls into local retrieval, prompting engine +
+        threads + profile. Live sessions saved as first-class entries. Cost meter per session.
+        STRIDE pass before any non-Tailscale exposure.</p>
+        <div class="exit"><b>Exit ▸</b>A nightly 10-minute conversation that references last week accurately.</div>
+      </div>
+      <div class="phase">
+        <div class="ph-head"><span class="ph-num">PHASE 03</span><h3>Presence — Embodiment v1</h3><span class="chip cyan">ring shipped · 3D head built &amp; shelved</span></div>
+        <p>Avatar surface v1: audio-reactive ring (TARS energy). v2: 3D lip-synced head
+        (TalkingHead). v3: photoreal talking head on the DGX — MuseTalk or AVTR-1 open weights —
+        behind the same renderer interface.</p>
+        <div class="exit"><b>Exit ▸</b>You talk to a face and it feels present, under 1s visual latency.</div>
+      </div>
+      <div class="phase horizon">
+        <div class="ph-head"><span class="ph-num">PHASE 04</span><h3>The Human + Mobile</h3><span class="dur">Horizon — research-blocked</span></div>
+        <p>End-to-end full-duplex audio+video model (Wan-Streamer class, paper 2606.25041) when
+        open weights or a serviceable API exist — currently ~550&nbsp;ms latency at 192p on two
+        GPUs, no public release. Watch: Wan-Streamer, AVTR-1 successors, FacePlex, Hallo-Live;
+        Tavus/HeyGen APIs as stopgaps. Mobile via Expo/React Native on the same API.</p>
+        <div class="exit"><b>Exit ▸</b>A natural human presence you journal with, on your phone.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="log" id="ui">
+    <div class="sec-head"><span class="num">SEC 07</span><h2>UI Direction — “Mission Log”</h2></div>
+    <div class="refsgrid">
+      <div class="refcard"><div class="sw martian"></div><h3>The Martian</h3>
+        <p>Utilitarian log console: SOL stamps, REC indicator, mission-elapsed time, checklist
+        flags. The recorder is a spacecraft comms panel.</p></div>
+      <div class="refcard"><div class="sw inter"></div><h3>Interstellar</h3>
+        <p>Restraint: near-black ground, thin luminous rules, sparse monospace readouts. The
+        agent as minimal geometry before it has a face.</p></div>
+      <div class="refcard"><div class="sw moon"></div><h3>Moon / GERTY</h3>
+        <p>Warmth inside the machine: soft amber status glow, rounded panels, an agent that
+        feels kind. Subtle scanline on playback.</p></div>
+      <div class="refcard"><div class="sw avatar"></div><h3>Avatar</h3>
+        <p>The organic layer: the concept graph as a bioluminescent constellation — entries as
+        stars, threads as glowing filaments.</p></div>
+    </div>
+    <p style="margin-top:1.2rem">Dark-first, glass panels, one accent (amber) plus one alert
+    color, video always front-and-center, timeline as a horizontal mission tape with flag pips.</p>
+  </section>
+
+  <section class="log" id="variants">
+    <div class="sec-head"><span class="num">SEC 08</span><h2>Deployment Variants</h2></div>
+    <div class="vars">
+      <div class="var">
+        <h3>Full-Local <span class="chip cyan">privacy-max</span></h3>
+        <p>Local speech-to-speech driver on the DGX: an open full-duplex model (Moshi-class /
+        Qwen-Omni-class) or a cascaded VAD → whisper → LLM → streaming-TTS pipeline. Expect
+        0.8–1.5&nbsp;s turns and weaker barge-in today. Everything else identical.</p>
+        <p class="when"><b>Trigger ▸</b> open S2S crosses “pleasant daily conversation,” or privacy stance hardens.</p>
+      </div>
+      <div class="var chosen">
+        <h3>Hybrid <span class="chip">chosen</span></h3>
+        <p>Cloud only for the live voice loop, zero-retention mode. All memory, media, and
+        indexing local on the DGX. Best conversation quality available today with the smallest
+        privacy surface.</p>
+        <p class="when"><b>Status ▸</b> the build target for phases 0–4, as architected in SEC&nbsp;03.</p>
+      </div>
+      <div class="var">
+        <h3>Full-Cloud <span class="chip dim">product shape</span></h3>
+        <p>Vercel + Neon/Supabase + R2 media + cloud whisper + realtime API + interactive-avatar
+        API. Fastest to multi-user product, lowest ops; intimate data lives with vendors —
+        requires real consent UX and retention policy.</p>
+        <p class="when"><b>Trigger ▸</b> “product later” activates. Adapter swaps, not a rewrite.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="log" id="security">
+    <div class="sec-head"><span class="num">SEC 09</span><h2>Security &amp; Privacy</h2></div>
+    <ul class="check">
+      <li>Tailscale-only until Phase 2 auth hardening; STRIDE on gateway + API before public exposure.</li>
+      <li>API keys server-side only; client receives ephemeral WebRTC session tokens.</li>
+      <li>Realtime API zero-retention / no-training flags on; provider config logged in repo.</li>
+      <li>Nightly encrypted backup of MinIO + Postgres to second disk / offsite — raw media is irreplaceable (P0, Phase 1).</li>
+      <li>Soft-delete everywhere; hard-delete is a deliberate two-step action.</li>
+      <li>Profile and threads — the agent's model of you — always visible and editable.</li>
+    </ul>
+  </section>
+
+  <section class="log" id="cost">
+    <div class="sec-head"><span class="num">SEC 10</span><h2>Cost Envelope</h2><span class="tag">hybrid · single user · rough</span></div>
+    <div class="figs">
+      <div class="fig"><div class="v">$0.06–0.30</div><div class="l">per voice minute</div></div>
+      <div class="fig"><div class="v">15 min</div><div class="l">daily session assumption</div></div>
+      <div class="fig"><div class="v">$30–130</div><div class="l">per month, cloud voice</div></div>
+      <div class="fig"><div class="v">~$0</div><div class="l">everything else — local</div></div>
+    </div>
+    <p>Cost meter ships in Phase 2 with a budget alarm at a user-set cap.</p>
+  </section>
+
+  <section class="log" id="watch">
+    <div class="sec-head"><span class="num">SEC 11</span><h2>Open Questions &amp; Watch List</h2></div>
+    <ol class="watch">
+      <li>Realtime provider first pick — default OpenAI Realtime (mature tool-calling); re-verify pricing and latency at Phase 2 start.</li>
+      <li>DGX Spark concurrent load: whisper + embeddings + extraction + avatar rendering share the box with KAIZEN and Hermes — benchmark in Phase 1.</li>
+      <li>iOS Safari MediaRecorder quirks (codec, background recording) — test early; may pull the Expo app forward.</li>
+      <li>Wan-Streamer open release — watch alongside FacePlex, Hallo-Live, DyStream.</li>
+      <li>“Memento” trademark collisions in software — note for “product later.”</li>
+    </ol>
+  </section>
+
+  <section class="log" id="confidence">
+    <div class="sec-head"><span class="num">SEC 12</span><h2>Confidence</h2></div>
+    <div class="meter">
+      <div class="bar"><div class="fill"></div></div>
+      <div class="lbl"><span>0</span><b>Medium-High · ~85%</b><span>100</span></div>
+    </div>
+    <p style="max-width:68ch">Path verified against current tech (avatar research checked
+    2026-07-11). Assumptions that would change the plan: open full-duplex S2S quality jumping
+    early (skip cloud voice entirely); DGX contention forcing the pipeline to other hardware;
+    realtime API pricing shifts changing the hybrid calculus.</p>
+  </section>
+
+</main>
+
+<footer>
+  <span>Memento · Mission Plan V1.0</span>
+  <span>Compiled 2026-07-11 · Source: ~/Desktop/memento/PLAN.md</span>
+  <span>Raw media is the source of truth</span>
+</footer>
+
+<script>
+(function(){
+  var c = document.getElementById('sky');
+  var ctx = c.getContext('2d');
+  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var stars = [], nodes = [], W = 0, H = 0, dpr = Math.min(devicePixelRatio || 1, 2);
+
+  function size(){
+    var r = c.parentElement.getBoundingClientRect();
+    W = r.width; H = r.height;
+    c.width = W * dpr; c.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    seed();
+  }
+  function seed(){
+    stars = []; nodes = [];
+    var ns = Math.floor(W * H / 4200);
+    for (var i = 0; i < ns; i++) stars.push({
+      x: Math.random()*W, y: Math.random()*H,
+      r: Math.random()*1.1 + .2, p: Math.random()*Math.PI*2,
+      s: .4 + Math.random()*.9
+    });
+    var nn = Math.max(9, Math.floor(W/110));
+    for (var j = 0; j < nn; j++) nodes.push({
+      x: Math.random()*W, y: Math.random()*H,
+      vx: (Math.random()-.5)*.09, vy: (Math.random()-.5)*.07,
+      cy: Math.random() < .35
+    });
+  }
+  function draw(t){
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < stars.length; i++){
+      var s = stars[i];
+      var a = reduced ? .55 : .3 + .45 * (0.5 + 0.5 * Math.sin(t/1400*s.s + s.p));
+      ctx.globalAlpha = a * .8;
+      ctx.fillStyle = '#C6CFD9';
+      ctx.fillRect(s.x, s.y, s.r, s.r);
+    }
+    // constellation filaments
+    for (var a1 = 0; a1 < nodes.length; a1++){
+      var n1 = nodes[a1];
+      for (var a2 = a1+1; a2 < nodes.length; a2++){
+        var n2 = nodes[a2];
+        var dx = n1.x-n2.x, dy = n1.y-n2.y, d = Math.sqrt(dx*dx+dy*dy);
+        if (d < 190){
+          ctx.globalAlpha = (1 - d/190) * .18;
+          ctx.strokeStyle = (n1.cy || n2.cy) ? '#59D2DE' : '#FFB454';
+          ctx.lineWidth = .6;
+          ctx.beginPath(); ctx.moveTo(n1.x, n1.y); ctx.lineTo(n2.x, n2.y); ctx.stroke();
+        }
+      }
+    }
+    for (var k = 0; k < nodes.length; k++){
+      var n = nodes[k];
+      ctx.globalAlpha = .85;
+      ctx.fillStyle = n.cy ? '#59D2DE' : '#FFB454';
+      ctx.beginPath(); ctx.arc(n.x, n.y, 1.6, 0, 7); ctx.fill();
+      ctx.globalAlpha = .12;
+      ctx.beginPath(); ctx.arc(n.x, n.y, 5.5, 0, 7); ctx.fill();
+      if (!reduced){
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < -10) n.x = W+10; if (n.x > W+10) n.x = -10;
+        if (n.y < -10) n.y = H+10; if (n.y > H+10) n.y = -10;
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  function loop(t){ draw(t); if (!reduced) requestAnimationFrame(loop); }
+  addEventListener('resize', function(){ size(); if (reduced) draw(0); });
+  size();
+  if (reduced) draw(0); else requestAnimationFrame(loop);
+})();
+</script>
