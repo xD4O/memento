@@ -7,6 +7,40 @@ pins & time capsules, threads & rapport profile, Life Story program, visual
 log, stats & starmap, morning briefings. Vision doc: [PLAN.md](PLAN.md);
 this file is the operational reference.
 
+## Screenshots
+
+Every shot below is from a demo instance seeded with fictional data
+(`memento_demo` — a telescope restoration, a trail-race block, and a sourdough
+starter named Kepler). Nothing here is a real journal.
+
+**Mission timeline** — the home feed: every log indexed, transcribed, and summarized.
+
+![Mission timeline](assets/screenshots/home.png)
+
+**Live console** — full-duplex voice sessions with the agent (idle, ring presence).
+
+![Live console](assets/screenshots/live.png)
+
+**Mission calendar** — day reports, moods, and reminders at a glance.
+
+![Mission calendar](assets/screenshots/calendar.png)
+
+**Stats** — streaks, logged time, mood strip, and what the log keeps returning to.
+
+![Stats](assets/screenshots/stats.png)
+
+**Memory starmap** — every concept a star; shared entries draw the filaments.
+
+![Memory starmap](assets/screenshots/starmap.png)
+
+**Operator profile** — open threads and the rapport model, fully user-editable.
+
+![Operator profile](assets/screenshots/profile.png)
+
+**Life Story program** — a long-form interview conducted over weeks.
+
+![Life Story](assets/screenshots/story.png)
+
 ## Stack
 
 - `web/` — Next.js 16 (port **8742**), Mission Log UI, API routes

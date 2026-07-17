@@ -7,7 +7,7 @@ INSERT INTO story_topics (user_id, chapter, prompt, ord) VALUES
 ('00000000-0000-0000-0000-000000000001', 'Family',        'What did your family teach you without ever saying it out loud?', 11),
 ('00000000-0000-0000-0000-000000000001', 'Family',        'Who in your family do you wish you had asked more questions?', 12),
 ('00000000-0000-0000-0000-000000000001', 'People',        'Who was your first real friend, and what happened to them?', 20),
-('00000000-0000-0000-0000-000000000001', 'People',        'Tell the story of meeting your wife.', 21),
+('00000000-0000-0000-0000-000000000001', 'People',        'Tell the story of meeting your partner.', 21),
 ('00000000-0000-0000-0000-000000000001', 'People',        'Who changed the direction of your life just by being in it?', 22),
 ('00000000-0000-0000-0000-000000000001', 'Turning Points','What is a decision you made that split your life into before and after?', 30),
 ('00000000-0000-0000-0000-000000000001', 'Turning Points','Tell the story of a time you failed at something that mattered.', 31),
