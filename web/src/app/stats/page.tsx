@@ -80,27 +80,23 @@ export default async function StatsPage() {
   ];
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pb-24 pt-10">
-      <div className="mb-6 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Mission Stats
-        </span>
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Mission Stats</h1>
         <span className="label">last 30 days</span>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {tileData.map((x) => (
-          <div key={x.l} className="panel px-4 py-3">
-            <div className="mono text-xl" style={{ color: "var(--text-bright)", fontVariantNumeric: "tabular-nums" }}>
-              {x.v}
-            </div>
-            <div className="label mt-1">{x.l}</div>
+      <div className="tiles">
+        {tileData.map((x, i) => (
+          <div key={x.l} className="panel tile">
+            <div className={`v${i === 1 ? " sig" : i === 3 ? " ice" : ""}`}>{x.v}</div>
+            <div className="label k">{x.l}</div>
           </div>
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="panel px-4 py-3">
+      <div className="chart-row">
+        <section className="panel" style={{ padding: "14px 16px 16px" }}>
           <div className="label mb-3" style={{ color: "var(--amber)" }}>
             Entries per day
           </div>
@@ -111,7 +107,7 @@ export default async function StatsPage() {
           />
         </section>
 
-        <section className="panel px-4 py-3">
+        <section className="panel" style={{ padding: "14px 16px 16px" }}>
           <div className="label mb-3" style={{ color: "var(--amber)" }}>
             Minutes logged per day
           </div>
@@ -122,14 +118,14 @@ export default async function StatsPage() {
           />
         </section>
 
-        <section className="panel px-4 py-3 lg:col-span-2">
+        <section className="panel" style={{ padding: "14px 16px 16px", gridColumn: "1 / -1" }}>
           <div className="label mb-3" style={{ color: "var(--amber)" }}>
             Mood — day by day
           </div>
           <MoodStrip data={moodData} />
         </section>
 
-        <section className="panel px-4 py-3 lg:col-span-2">
+        <section className="panel" style={{ padding: "14px 16px 16px", gridColumn: "1 / -1" }}>
           <div className="label mb-3" style={{ color: "var(--amber)" }}>
             What the log keeps returning to
           </div>
@@ -171,6 +167,6 @@ export default async function StatsPage() {
           </table>
         </div>
       </details>
-    </main>
+    </div>
   );
 }

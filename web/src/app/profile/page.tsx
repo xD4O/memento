@@ -96,11 +96,9 @@ export default function ProfilePage() {
   const closed = threads.filter((t) => t.status !== "open").slice(0, 10);
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pb-24 pt-10">
-      <div className="mb-2 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Operator Profile
-        </span>
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Operator Profile</h1>
         <span className="label">
           everything the agent knows about you — yours to correct
         </span>
@@ -113,33 +111,30 @@ export default function ProfilePage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="panel self-start">
-          <div className="label px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-dim)", color: "var(--amber)" }}>
+          <div className="panel-hd" style={{ padding: "12px 14px 9px", margin: 0 }}><span className="label">
             Open Threads · {open.length}
-          </div>
+          </span></div>
           <div className="flex flex-col gap-1 px-4 py-3">
             {open.length === 0 && (
               <p className="label">No open loops — the log is settled.</p>
             )}
             {open.map((t) => (
-              <div key={t.id} className="flex items-baseline gap-3 border-b py-2 last:border-0" style={{ borderColor: "var(--line-dim)" }}>
-                <span className="mono text-xs" style={{ color: "var(--amber)" }}>▸</span>
-                <span className="min-w-0 flex-1">
-                  <span style={{ color: "var(--text-bright)" }}>{t.title}</span>
-                  {t.detail && (
-                    <span className="block text-sm" style={{ color: "var(--dim)" }}>
-                      {t.detail}
-                    </span>
-                  )}
+              <div key={t.id} className="loop">
+                <span className="top">
+                  <span className="label" style={{ color: "var(--cyan)" }}>▸</span>
+                  <span className="nm">{t.title}</span>
+                  <span className="spacer" />
+                  <span className="age">{t.age_days}d</span>
+                  <button className="chip ok" style={{ cursor: "pointer", background: "none" }}
+                    onClick={() => setThreadStatus(t.id, "resolved")} title="Mark resolved">
+                    ✓
+                  </button>
+                  <button className="chip dim" style={{ cursor: "pointer", background: "none" }}
+                    onClick={() => setThreadStatus(t.id, "dropped")} title="Drop — stop following up">
+                    ✕
+                  </button>
                 </span>
-                <span className="label whitespace-nowrap">{t.age_days}d</span>
-                <button className="chip cyan" style={{ cursor: "pointer", background: "none" }}
-                  onClick={() => setThreadStatus(t.id, "resolved")} title="Mark resolved">
-                  ✓
-                </button>
-                <button className="chip dim" style={{ cursor: "pointer", background: "none" }}
-                  onClick={() => setThreadStatus(t.id, "dropped")} title="Drop — stop following up">
-                  ✕
-                </button>
+                {t.detail && <span className="why">{t.detail}</span>}
               </div>
             ))}
             <div className="mt-2 flex gap-2">
@@ -177,9 +172,9 @@ export default function ProfilePage() {
         </section>
 
         <section className="panel self-start">
-          <div className="label px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-dim)", color: "var(--amber)" }}>
+          <div className="panel-hd" style={{ padding: "12px 14px 9px", margin: 0 }}><span className="label">
             Rapport Profile · {facts.length}
-          </div>
+          </span></div>
           <div className="px-4 py-3">
             {facts.length === 0 && (
               <p className="label">
@@ -242,6 +237,6 @@ export default function ProfilePage() {
         indexed. The agent weaves at most one or two open threads into a
         session — see <Link href="/live">Live</Link>.
       </p>
-    </main>
+    </div>
   );
 }

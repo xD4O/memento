@@ -34,11 +34,9 @@ export default async function DebriefsPage() {
   );
 
   return (
-    <main className="mx-auto max-w-4xl px-5 pb-24 pt-10">
-      <div className="mb-8 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Mission Debriefs
-        </span>
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Mission Debriefs</h1>
         <span className="label">one report per completed week</span>
       </div>
 
@@ -58,8 +56,8 @@ export default async function DebriefsPage() {
         {rows.map((w) => (
           <article key={w.week_start} className="panel px-5 py-4">
             <header className="flex flex-wrap items-baseline gap-4 border-b pb-2" style={{ borderColor: "var(--line-dim)" }}>
-              <span className="mono text-sm" style={{ color: "var(--amber)", letterSpacing: ".18em" }}>
-                MISSION WEEK {String(w.mission_week).padStart(2, "0")}
+              <span className="label" style={{ color: "var(--cyan)", fontSize: ".7rem" }}>
+                Mission week {String(w.mission_week).padStart(2, "0")}
               </span>
               <span className="label">
                 {w.week_start} → {w.week_end} · {w.entry_count} entries
@@ -87,16 +85,16 @@ export default async function DebriefsPage() {
             {!!w.highlights?.length && (
               <ul className="mt-3 flex flex-col gap-1">
                 {w.highlights.map((h, i) => (
-                  <li key={i} className="text-sm" style={{ color: "var(--text-bright)" }}>
-                    <span className="mono mr-2" style={{ color: "var(--amber)" }}>▸</span>
-                    {h}
+                  <li key={i} className="hl">
+                    <span className="gx">▸</span>
+                    <span className="t">{h}</span>
                   </li>
                 ))}
               </ul>
             )}
             {w.patterns && (
-              <p className="mt-3 border-l-2 pl-3 text-sm" style={{ borderColor: "var(--cyan)", color: "var(--dim)" }}>
-                <span className="label mr-2" style={{ color: "var(--cyan)" }}>
+              <p className="patterns mt-3">
+                <span className="label mr-2" style={{ color: "var(--amber)" }}>
                   Patterns
                 </span>
                 {w.patterns}
@@ -105,6 +103,6 @@ export default async function DebriefsPage() {
           </article>
         ))}
       </div>
-    </main>
+    </div>
   );
 }

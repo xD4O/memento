@@ -27,11 +27,9 @@ export default async function StoryPage() {
   const next = rows.find((t) => t.status === "pending");
 
   return (
-    <main className="mx-auto max-w-3xl px-5 pb-24 pt-10">
-      <div className="mb-3 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Life Story
-        </span>
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Life Story</h1>
         <span className="label">
           {done}/{rows.length} chapters of your autobiography recorded
         </span>
@@ -43,36 +41,41 @@ export default async function StoryPage() {
         recognizes it.
       </p>
       {next && (
-        <div className="callout-like panel mb-8 px-4 py-3" style={{ borderColor: "var(--line)" }}>
-          <span className="label" style={{ color: "var(--cyan)" }}>Next up · {next.chapter}</span>
-          <p className="mt-1" style={{ color: "var(--text-bright)" }}>{next.prompt}</p>
+        <div className="q-row next-up mb-8" style={{ padding: "15px 18px" }}>
+          <span className="box" style={{ color: "var(--cyan)" }}>▸</span>
+          <div>
+            <span className="label" style={{ color: "var(--cyan)", display: "block", marginBottom: 5 }}>
+              Next up · {next.chapter}
+            </span>
+            <span className="qt">{next.prompt}</span>
+          </div>
         </div>
       )}
 
       <div className="flex flex-col gap-6">
         {[...chapters.entries()].map(([chapter, topics]) => (
           <section key={chapter}>
-            <h2 className="label mb-2" style={{ color: "var(--cyan)" }}>
+            <h2 className="label mb-2" style={{ color: "var(--amber)" }}>
               {chapter} · {topics.filter((t) => t.status === "done").length}/{topics.length}
             </h2>
             <div className="flex flex-col gap-1">
               {topics.map((t) => (
                 <div
                   key={t.id}
-                  className="panel flex items-baseline gap-3 px-4 py-2.5"
+                  className={`q-row${t.status === "done" ? " done" : ""}`}
                   style={{ opacity: t.status === "done" ? 1 : 0.75 }}
                 >
                   <span
-                    className="mono text-xs"
+                    className="box"
                     style={{ color: t.status === "done" ? "var(--amber)" : "var(--dim)" }}
                   >
                     {t.status === "done" ? "▣" : "▢"}
                   </span>
-                  <span className="flex-1 text-sm" style={{ color: t.status === "done" ? "var(--text-bright)" : "var(--text)" }}>
+                  <span className="qt flex-1">
                     {t.prompt}
                   </span>
                   {t.entry_id && (
-                    <Link href={`/entry/${t.entry_id}`} className="label whitespace-nowrap">
+                    <Link href={`/entry/${t.entry_id}`} className="when">
                       ▶ {t.completed_at}
                     </Link>
                   )}
@@ -82,6 +85,6 @@ export default async function StoryPage() {
           </section>
         ))}
       </div>
-    </main>
+    </div>
   );
 }

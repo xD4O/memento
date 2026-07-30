@@ -18,9 +18,9 @@ export default async function ConceptPage({
 
   if (!concept)
     return (
-      <main className="mx-auto max-w-4xl px-5 pt-16">
+      <div className="stage-pad">
         <p className="mono" style={{ color: "var(--red)" }}>CONCEPT NOT FOUND</p>
-      </main>
+      </div>
     );
 
   const { rows: entries } = await db.query(
@@ -34,7 +34,7 @@ export default async function ConceptPage({
   );
 
   return (
-    <main className="mx-auto max-w-4xl px-5 pb-24 pt-10">
+    <div className="stage-pad">
       <div className="mb-8 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
         <Link href="/catalog" className="label">
           ← Catalog
@@ -90,6 +90,6 @@ export default async function ConceptPage({
           </li>
         ))}
       </ul>
-    </main>
+    </div>
   );
 }

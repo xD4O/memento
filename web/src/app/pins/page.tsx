@@ -58,12 +58,9 @@ export default function PinsPage() {
   const closed = pins.filter((p) => p.status !== "active");
 
   const Row = ({ p }: { p: Pin }) => (
-    <div
-      className="flex items-baseline gap-3 border-b py-2 last:border-0"
-      style={{ borderColor: "var(--line-dim)" }}
-    >
+    <div className="pin">
       <span
-        className="mono text-xs"
+        className="gx"
         style={{
           color: p.overdue
             ? "var(--red)"
@@ -74,7 +71,7 @@ export default function PinsPage() {
       >
         {p.kind === "reminder" ? "◪" : "▤"}
       </span>
-      <span className="min-w-0 flex-1" style={{ color: "var(--text-bright)" }}>
+      <span className="txt">
         {p.text}
         {p.source_entry_id && (
           <Link
@@ -87,12 +84,7 @@ export default function PinsPage() {
         )}
       </span>
       {p.due_on && (
-        <span
-          className="mono text-xs whitespace-nowrap"
-          style={{
-            color: p.overdue ? "var(--red)" : p.due_today ? "var(--amber)" : "var(--dim)",
-          }}
-        >
+        <span className={`due${p.overdue ? " over" : p.due_today ? " today" : ""}`}>
           {p.overdue ? "OVERDUE · " : p.due_today ? "TODAY · " : ""}
           {p.due_on}
         </span>
@@ -110,11 +102,9 @@ export default function PinsPage() {
   );
 
   return (
-    <main className="mx-auto max-w-4xl px-5 pb-24 pt-10">
-      <div className="mb-2 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Pinboard
-        </span>
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Pinboard</h1>
         <span className="label">
           say “remind me…” or “pin that” in any entry or session — it lands here
         </span>
@@ -143,17 +133,17 @@ export default function PinsPage() {
 
       {overdue.length > 0 && (
         <section className="panel mb-4" style={{ borderColor: "rgba(229,72,77,.4)" }}>
-          <div className="label px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-dim)", color: "var(--red)" }}>
+          <div className="panel-hd alert" style={{ padding: "12px 14px 9px", margin: 0 }}><span className="label">
             Overdue · {overdue.length}
-          </div>
+          </span></div>
           <div className="px-4 py-1">{overdue.map((p) => <Row key={p.id} p={p} />)}</div>
         </section>
       )}
 
       <section className="panel mb-4">
-        <div className="label px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-dim)", color: "var(--amber)" }}>
+        <div className="panel-hd warm" style={{ padding: "12px 14px 9px", margin: 0 }}><span className="label">
           Upcoming Reminders · {upcoming.length}
-        </div>
+        </span></div>
         <div className="px-4 py-1">
           {upcoming.length === 0 && <p className="label py-2">Nothing scheduled.</p>}
           {upcoming.map((p) => <Row key={p.id} p={p} />)}
@@ -161,9 +151,9 @@ export default function PinsPage() {
       </section>
 
       <section className="panel mb-4">
-        <div className="label px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-dim)", color: "var(--cyan)" }}>
+        <div className="panel-hd" style={{ padding: "12px 14px 9px", margin: 0 }}><span className="label">
           Notes · {notes.length}
-        </div>
+        </span></div>
         <div className="px-4 py-1">
           {notes.length === 0 && <p className="label py-2">No pinned notes.</p>}
           {notes.map((p) => <Row key={p.id} p={p} />)}
@@ -172,9 +162,9 @@ export default function PinsPage() {
 
       {closed.length > 0 && (
         <section className="panel">
-          <div className="label px-4 py-2.5" style={{ borderBottom: "1px solid var(--line-dim)" }}>
+          <div className="panel-hd" style={{ padding: "12px 14px 9px", margin: 0 }}><span className="label">
             Recently Closed
-          </div>
+          </span></div>
           <div className="px-4 py-1">
             {closed.map((p) => (
               <div key={p.id} className="flex items-baseline gap-3 py-1.5 text-sm" style={{ color: "var(--dim)" }}>
@@ -192,6 +182,6 @@ export default function PinsPage() {
           </div>
         </section>
       )}
-    </main>
+    </div>
   );
 }

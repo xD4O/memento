@@ -252,13 +252,11 @@ export default function RecordConsole({
   const busy = mode === "recording" || mode === "uploading";
 
   return (
-    <main className="mx-auto max-w-4xl px-5 pb-24 pt-8">
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Record Console
-        </span>
-        <span className="label">
-          SOL {String(sol).padStart(3, "0")} · Entry {String(entryNo).padStart(3, "0")}
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>New Entry</h1>
+        <span className="sub">
+          Sol {String(sol).padStart(3, "0")} · Entry {String(entryNo).padStart(3, "0")}
         </span>
         {hasCam && hasMic && !busy && mode !== "review" && (
           <button
@@ -270,16 +268,26 @@ export default function RecordConsole({
           </button>
         )}
         {!hasCam && hasMic && <span className="chip cyan">audio only</span>}
+        <span className="spacer" />
         <span
-          className="ml-auto mono text-sm"
-          style={{ color: mode === "recording" ? "var(--red)" : "var(--dim)" }}
+          className="mono text-sm"
+          style={{ color: mode === "recording" ? "var(--crit)" : "var(--dim)" }}
         >
           {mode === "recording" && <span className="rec-dot mr-2 inline-block" />}
           {fmtTimer(seconds)}
         </span>
       </div>
 
-      <div className="panel relative overflow-hidden" style={{ aspectRatio: "16/9" }}>
+      <div className="scope relative overflow-hidden" style={{ aspectRatio: "16/9" }}>
+        {mode !== "review" && <div className="thirds" aria-hidden="true" />}
+        <div className="hud-corners" aria-hidden="true" />
+        <span className="corner-lbl tl" style={{ color: "var(--cyan)" }}>
+          Log entry ▸ {String(sol).padStart(3, "0")}
+        </span>
+        <span className="corner-lbl tr">Entry {String(entryNo).padStart(3, "0")}</span>
+        <span className="corner-lbl br">
+          {mode === "recording" ? "● Rec" : mode === "review" ? "Review" : "Standby"}
+        </span>
         {mode === "review" ? (
           reviewUrl &&
           (capture === "video" ? (
@@ -339,7 +347,7 @@ export default function RecordConsole({
         )}
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="action-row mt-5">
         {mode === "live" && (
           <button className="btn" onClick={startRecording}>
             ● Start Recording
@@ -356,22 +364,28 @@ export default function RecordConsole({
               ▲ Commit Entry
             </button>
             {!sealOpen ? (
-              <button className="chip cyan" style={{ cursor: "pointer", background: "none", padding: ".45em 1em" }}
-                onClick={() => setSealOpen(true)} title="Hide this entry until a future date — a message to future you">
+              <button
+                className="btn cyan"
+                onClick={() => setSealOpen(true)}
+                title="Hide this entry until a future date — a message to future you"
+              >
                 ◍ Seal as Time Capsule…
               </button>
             ) : (
-              <span className="flex items-center gap-2">
+              <span className="flex items-stretch gap-2">
                 <input
                   type="date"
                   value={sealDate}
                   min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)}
                   onChange={(e) => setSealDate(e.target.value)}
-                  className="mono px-2 py-1.5 text-sm outline-none"
-                  style={{ background: "var(--panel)", border: "1px solid rgba(89,210,222,.35)", color: "var(--cyan)", colorScheme: "dark" }}
+                  className="field"
+                  style={{ width: 168, colorScheme: "dark", color: "var(--cyan)" }}
                 />
-                <button className="chip cyan" style={{ cursor: "pointer", background: "none", padding: ".45em 1em" }}
-                  disabled={!sealDate} onClick={() => sealDate && commit(sealDate)}>
+                <button
+                  className="btn cyan"
+                  disabled={!sealDate}
+                  onClick={() => sealDate && commit(sealDate)}
+                >
                   ◍ Seal until {sealDate || "…"}
                 </button>
               </span>
@@ -422,6 +436,6 @@ export default function RecordConsole({
           {message}
         </p>
       )}
-    </main>
+    </div>
   );
 }

@@ -1,291 +1,492 @@
 # MEMENTO
 
-A live journal you talk to. Video/voice log entries and full-duplex agent
-sessions, transcribed, indexed, and remembered: search & Ask, concept catalog,
-mission calendar with day reports, weekly debriefs with narrated recap videos,
-pins & time capsules, threads & rapport profile, Life Story program, visual
-log, stats & starmap, morning briefings. Vision doc: [PLAN.md](PLAN.md);
-this file is the operational reference.
+**A private journal you talk to.** Record a video or voice log — or hold a
+full-duplex conversation with an agent that has read everything you've ever
+logged. Every entry is transcribed, embedded, summarized, and cross-linked, so
+the archive answers questions instead of just storing them.
+
+Runs entirely on your own hardware. Transcription, embeddings, concept
+extraction, reflection, vision, and day/week reports are all local models; the
+only optional cloud call is the realtime voice session.
+
+![version](https://img.shields.io/badge/version-0.1.1-e8a33d?style=flat-square)
+![stack](https://img.shields.io/badge/Next.js-16-0b7285?style=flat-square)
+![db](https://img.shields.io/badge/Postgres_17-pgvector-336791?style=flat-square)
+![local](https://img.shields.io/badge/inference-local-3fa46a?style=flat-square)
+
+Vision and rationale live in [PLAN.md](PLAN.md). This file is the operational
+reference.
+
+---
+
+## Contents
+
+- [Screenshots](#screenshots)
+- [What it does](#what-it-does)
+- [Architecture](#architecture)
+- [How an entry flows](#how-an-entry-flows)
+- [Quickstart](#quickstart)
+- [Configuration](#configuration)
+- [Operating it](#operating-it)
+- [Security](#security)
+- [Feature reference](#feature-reference)
+- [Known limits](#known-limits)
+- [Roadmap](#roadmap)
+
+---
 
 ## Screenshots
 
-Every shot below is from a demo instance seeded with fictional data
-(`memento_demo` — a telescope restoration, a trail-race block, and a sourdough
-starter named Kepler). Nothing here is a real journal.
+Every shot below comes from a demo instance seeded with **fictional** data
+(`memento_demo` — a telescope restoration, a trail-race training block, and a
+sourdough starter named Kepler). Nothing here is a real journal.
 
-**Mission timeline** — the home feed: every log indexed, transcribed, and summarized.
+**Mission timeline** — the home feed. Every log indexed, transcribed, and
+summarized, with the archive orbit, system health, and open threads alongside.
 
 ![Mission timeline](assets/screenshots/home.png)
 
-**Live console** — full-duplex voice sessions with the agent (idle, ring presence).
+**Live console** — full-duplex voice sessions with the agent. Recording mode,
+conversation mode, and presence surface are all switchable before you start.
 
 ![Live console](assets/screenshots/live.png)
 
-**Mission calendar** — day reports, moods, and reminders at a glance.
+**Memory search** — hybrid semantic + keyword retrieval across every
+transcript; each hit deep-links to the exact second it was said.
+
+![Memory search](assets/screenshots/search.png)
+
+**Mission calendar** — activity pips, day mood, reminders due, and an
+LLM-compiled report behind every day.
 
 ![Mission calendar](assets/screenshots/calendar.png)
 
-**Stats** — streaks, logged time, mood strip, and what the log keeps returning to.
+**Telemetry** — streaks, logged time, session spend, a mood valence strip, and
+what the log keeps returning to.
 
-![Stats](assets/screenshots/stats.png)
+![Telemetry](assets/screenshots/stats.png)
 
-**Memory starmap** — every concept a star; shared entries draw the filaments.
+**Memory starmap** — every concept a star, sized by how many entries touch it;
+shared entries draw the filaments between them.
 
 ![Memory starmap](assets/screenshots/starmap.png)
 
-**Operator profile** — open threads and the rapport model, fully user-editable.
+**Operator profile** — everything the agent believes about you: open threads it
+follows up across sessions, and the rapport model. All of it editable, none of
+it hidden.
 
 ![Operator profile](assets/screenshots/profile.png)
 
-**Life Story program** — a long-form interview conducted over weeks.
+**Life Story** — a long-form autobiography interview conducted a few questions
+at a time, over weeks.
 
 ![Life Story](assets/screenshots/story.png)
 
-## Stack
+**Vault** — trash and archive. Deleting takes an entry off the timeline without
+destroying it; purging is explicit, separate, and irreversible by design.
 
-- `web/` — Next.js 16 (port **8742**), Mission Log UI, API routes
-- `worker/` — Python pipeline (polls Postgres): whisper transcription,
-  embeddings, LLM extraction/reflection, vision pass, day/week reports,
-  capsule delivery, recap videos
-- `db/schema.sql` — Postgres 17 + pgvector (port **5433**)
-- MinIO (S3) for raw media (API **9400**, console **9401**)
-- `.env` — single shared config (web reads it via the `web/.env.local` symlink)
+![Vault](assets/screenshots/vault.png)
 
-## Run
+---
 
-**Production (how it runs now):** everything is persistent — Docker services
-restart themselves, and the web app + worker are systemd user services
-(lingering enabled, so they start at boot and auto-restart on crash):
+## What it does
 
-```bash
-systemctl --user status memento-web memento-worker
-journalctl --user -u memento-worker -f        # worker logs
-# after changing web code: (cd web && npm run build) && systemctl --user restart memento-web
-# after changing worker code: systemctl --user restart memento-worker
+**Capture**
+- Video and audio log entries from the browser, or import existing media files.
+- Full-duplex voice sessions with an agent briefed on your recent history.
+- Time capsules — seal an entry until a future delivery date.
+
+**Understand**
+- Word-level transcription with click-to-seek synced transcripts.
+- Concept extraction (people, places, projects, ideas, themes) into a catalog.
+- A vision pass that describes what each video actually looked like.
+- Reflection after every entry: opens and resolves threads, updates your profile.
+
+**Retrieve**
+- Hybrid semantic + keyword search with reciprocal-rank fusion.
+- **Ask** — questions answered in your journal's own words, with citations that
+  deep-link to the exact video second.
+- Concept catalog, mission calendar with day reports, weekly debriefs.
+
+**Remember for you**
+- Pins: reminders and notes captured from natural speech.
+- Threads: unresolved loops the agent carries between sessions.
+- Rapport profile: goals, values, people, preferences, sensitivities, context.
+- Life Story: 24 topics across 9 chapters, checked off as you tell them.
+
+**Report**
+- Day reports, weekly debriefs with narrated recap videos, morning briefings,
+  and an evening nudge that only fires when you haven't logged.
+
+---
+
+## Architecture
+
+| Component | What it is |
+| --- | --- |
+| `web/` | Next.js 16 app — Mission Log console UI and all API routes. Port **8742** |
+| `worker/worker.py` | Python pipeline polling Postgres: transcription, embeddings, LLM extraction, reflection, vision, day/week reports, capsule delivery, recap videos |
+| `db/schema.sql` | Postgres 17 + pgvector schema. Port **5433** |
+| MinIO | S3-compatible store for raw media. API **9400**, console **9401** |
+| ntfy | Self-hosted push for briefings and nudges. Port **8744** |
+| `scripts/` | Backups, migrations, dev bootstrap, briefing, nudge, avatar render |
+| `.env` | Single shared config; the web app reads it via the `web/.env.local` symlink |
+
+The console UI is composed of a few dedicated surfaces: a persistent module
+rail (`ModuleRail`), mission-elapsed clock (`MissionClock`), parallax starfield
+backdrop (`VoidField`), archive orbit visual (`ArchiveOrbit`), and the live
+avatar surface (`AvatarLive`). Version and author metadata come from
+`web/src/lib/version.ts`.
+
+Models are pluggable via `.env`: `WHISPER_MODEL` for transcription,
+`OLLAMA_MODEL` for text, `VISION_MODEL` for the vision pass.
+
+> **Note on Next.js:** this project tracks a Next.js version with breaking
+> changes from earlier releases. See `web/AGENTS.md` before writing app code.
+
+---
+
+## How an entry flows
+
 ```
+record console (or Import Media File)
+  → POST /api/entries
+  → PUT  /api/entries/:id/media        (streamed to MinIO)
+  → status: uploaded
+  → worker claims it (FOR UPDATE SKIP LOCKED)
+  → ffmpeg → 16k mono
+  → faster-whisper (word timestamps, VAD) → segments rows
+  → thumbnail frame → MinIO             (video entries)
+  → title / summary / mood via local Ollama
+  → status: indexed
+```
+
+If Ollama is down the entry still lands, falling back to a first-words title.
+The entry page polls until indexed, then renders the synced transcript.
+
+Everything downstream of the media is **derived data**. To regenerate an entry
+completely — transcript, metadata, vision, reflection — reset it:
+
+```sql
+UPDATE entries SET status='uploaded' WHERE id='…';
+```
+
+Deletes are soft (`deleted_at`) and archiving is separate (`archived_at`); raw
+media is never touched by either. See [Vault](#vault) for the one destructive
+path.
+
+---
+
+## Quickstart
 
 **Development:**
 
 ```bash
-systemctl --user stop memento-web             # free port 8742 first
-bash scripts/dev.sh                           # docker + migrate + worker + next dev
+systemctl --user stop memento-web      # free port 8742 if it's running
+bash scripts/dev.sh                    # docker + migrate + worker + next dev
 ```
 
-Open http://localhost:8742 — camera capture requires localhost or HTTPS
-(over Tailscale, use `tailscale serve` for HTTPS or browse from the DGX itself).
+Open <http://localhost:8742>. Camera capture requires localhost or HTTPS — over
+Tailscale, use `tailscale serve` for HTTPS or browse from the host itself.
 
-**Install on your phone (PWA):** open the Tailscale HTTPS URL → Android
+The first worker run downloads the whisper model (`WHISPER_MODEL`, default
+`small`; `medium` for accuracy, `base` for speed).
+
+**First run** claims the terminal at `/register`. That route closes
+permanently once an operator exists.
+
+**Install on your phone (PWA):** open the Tailscale HTTPS URL, then Android
 Chrome: ⋮ → *Install app*; iOS Safari: Share → *Add to Home Screen*. Launches
-standalone (no browser chrome), Mission-Log icon, notch-safe layout.
+standalone with a notch-safe layout.
 
-First worker run downloads the whisper model (`WHISPER_MODEL` in `.env`,
-default `small`; use `medium` for better accuracy, `base` for speed).
+---
 
-## How it flows
+## Configuration
 
-record console (or **Import Media File** for existing recordings) →
-`POST /api/entries` → `PUT /api/entries/:id/media` (streamed to MinIO) →
-status `uploaded` → worker claims via `FOR UPDATE SKIP LOCKED` → ffmpeg 16k
-mono → faster-whisper (word timestamps, VAD) → `segments` rows → thumbnail
-frame to MinIO (video entries) → title/summary/mood from local Ollama
-(`OLLAMA_MODEL`, default qwen2.5:7b; falls back to first-words title if
-Ollama is down) → status `indexed`.
+All configuration is one `.env` at the repo root (`.env.example` is the
+template). Highlights:
 
-The entry page polls until indexed and renders the click-to-seek synced
-transcript. Deletes are soft (`deleted_at`); raw media is never touched.
-Everything downstream of the media is derived data — regenerate any entry
-(transcript, metadata, vision, reflection) by resetting it:
-`UPDATE entries SET status='uploaded' WHERE id='…';`
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Postgres connection string |
+| `AUTH_SECRET` | HMAC key for session cookies |
+| `WHISPER_MODEL` / `WHISPER_DEVICE` / `WHISPER_COMPUTE` | Transcription model and placement |
+| `OLLAMA_URL` / `OLLAMA_MODEL` | Local text model (default `qwen2.5:7b`) |
+| `VISION_MODEL` | Local VLM for the visual log (qwen2.5-VL) |
+| `OPENAI_API_KEY` | Optional — enables live voice sessions and TTS narration |
+| `OPENAI_REALTIME_MODEL` / `REALTIME_VOICE` | Defaults `gpt-realtime` / `marin` |
+| `TTS_VOICE` | Overrides the recap narrator voice |
+| `RATE_AUDIO_IN` / `RATE_AUDIO_OUT` / `RATE_TEXT_IN` / `RATE_TEXT_OUT` | Per-token rates for the cost meter |
+| `S3_*` | MinIO endpoint, credentials, bucket |
+| `NTFY_URL` / `NTFY_TOPIC` / `NTFY_BIND_IP` | Push notifications |
+| `AVATARFORCING_DIR` / `NARRATOR_REF` / `AVATAR_MAX_S` | Avatar renderer install, face image, clip cap |
+| `BACKUP_KEY` / `OFFSITE_CMD` | Backup encryption key and offsite sync command |
 
-## Search, catalog, backups (Phase 1b)
+Without an `OPENAI_API_KEY` the live page explains itself and everything else
+keeps working.
 
-- **/search** — hybrid semantic (nomic-embed-text via Ollama, pgvector HNSW)
-  + keyword (Postgres FTS) with reciprocal-rank fusion; results deep-link to
-  the exact second (`/entry/:id?t=`). Degrades to keyword-only if Ollama is down.
-- **/catalog** — concepts (people, places, projects, ideas, themes) extracted
-  per entry by the LLM; each concept page lists its entries.
-- **Backups** — `scripts/backup.sh` runs nightly at 03:10 via cron:
-  pg_dump (14-day retention) + additive media mirror to `~/memento-backups/`
-  (`MEMENTO_BACKUP_DIR` to override) + encrypted offsite staging (see Security).
+---
 
-## Flags & export (Phase 1c)
+## Operating it
 
-- Hover any transcript line → **⚑** to flag a moment (stored as a `user`
-  annotation). The indexing LLM also proposes `action_item` / `insight` flags
-  from the transcript ("Flagged Moments" panel on each entry; ✕ to dismiss).
-- **⬇ Export Archive** on the timeline streams a zip: `memento-export.json`
-  (full metadata), plus per-entry transcripts and original media.
+The reference deployment is fully persistent: Docker services restart
+themselves, and the web app and worker run as systemd **user** services with
+lingering enabled, so they survive reboots and crashes.
 
-## Live agent (Phase 2)
+```bash
+systemctl --user status memento-web memento-worker
+journalctl --user -u memento-worker -f                 # follow worker logs
 
-`/live` is a full-duplex voice session with Memento (OpenAI Realtime over
-WebRTC, browser connects directly; the server only mints ephemeral session
-tokens and serves the `search_journal` tool). The agent gets a prompting-engine
-brief per session: question ladder (L0 check-in → L3 depth, escalate only on
-engagement), recent entry summaries, recurring concepts, no-fabrication rule
-(it must call `search_journal` before referencing the past), and
-companion-not-therapist guardrails. Ended sessions are saved as
-`live_session` entries — transcribed both sides, then indexed/embedded/flagged
-by the worker like any other entry.
+# after changing web code
+(cd web && npm run build) && systemctl --user restart memento-web
 
-Sessions are **recorded by default** (`rec: video ⇄` chip to cycle
-video/audio/off before starting): your camera + your mic mixed with the
-agent's voice, uploaded on session end. The recording and the transcript share
-the session clock, so transcript lines seek the video. The worker never
-re-transcribes session recordings (the Realtime transcript keeps correct
-you-vs-agent attribution); it only adds the thumbnail and true duration.
+# after changing worker code
+systemctl --user restart memento-worker
+```
 
-**Presence (Phase 3):** the audio-reactive **ring** — amber when Memento
-speaks, cyan when you do. A 3D-avatar surface exists behind the same renderer
-boundary but is shelved by operator decision (`AVATAR_ENABLED=false` in
-`LiveConsole.tsx`; needs a GLB at `web/public/avatar.glb` to re-enable) —
-the ring holds until a Wan-Streamer-class photoreal surface is achievable.
+**Backups** — `scripts/backup.sh` runs nightly at 03:10 via cron: `pg_dump`
+with 14-day retention, an additive media mirror to `~/memento-backups/`
+(`MEMENTO_BACKUP_DIR` to override), and an AES-256 encrypted copy staged in
+`~/memento-backups/offsite/`.
 
-**To enable:** put your key in `.env` (`OPENAI_API_KEY=sk-…`), restart the web
-server. Model/voice: `OPENAI_REALTIME_MODEL` (default `gpt-realtime`),
-`REALTIME_VOICE` (default `marin`). Costs are per-minute; without a key the
-page explains itself and everything else keeps working.
+```bash
+# decrypt a staged bundle
+openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:$BACKUP_KEY" -in x.enc -out x.dump
+```
 
-## Threads, profile & cost (Phase 2.5)
+Keep a copy of `BACKUP_KEY` somewhere that is **not** this machine. Set
+`OFFSITE_CMD` to an rclone/rsync line to actually ship the bundles; until then
+the nightly log warns.
 
-- **/profile** — the agent's model of you, fully visible and editable: open
-  **threads** (unresolved loops it follows up across sessions; resolve ✓ /
-  drop ✕ / add your own) and the **rapport profile** (goals, values, people,
-  preferences, sensitivities, context — delete anything, add anything).
-- After every indexed entry the worker runs a **reflection pass**: opens new
-  threads, resolves ones the entry settles, and adds genuinely new profile
-  facts. Live sessions read open threads + profile in their instructions and
-  weave in at most one or two, naturally.
-- **Cost meter**: live `≈$` estimate in the session header while talking
-  (token usage × `RATE_*` env rates), saved to the entry row (`cost_usd`).
-  Deliberately NOT shown on entry pages — spend surfaces only in aggregate:
-  the "session spend" tile on /stats and the per-week `≈$ agent time` figure
-  in each /debriefs header. Listen-mode sessions report ~$0 (input
-  transcription, ~half a cent/min, isn't included in usage events).
+---
 
-## Pins — reminders & notes
+## Security
 
-Say "remind me…", "pin that", or "note that down" in any entry or live
-session and it lands on **/pins** — reminders (date-anchored) and notes.
-Sections: overdue / upcoming / notes / recently closed; ✓ done, ✕ dismiss,
-manual add with optional date. Dates are resolved deterministically in code
-from the journaler's phrase ("Monday", "tomorrow", "this weekend"), not by
-the LLM. Due reminders appear on the calendar (◪, red when overdue) and in
-that day's report panel. The live agent is briefed on reminders due
-today/tomorrow and has a `create_pin` tool to pin things mid-conversation.
+- **Auth** — passphrase login (scrypt hash in the users row; a legacy `.env`
+  `AUTH_HASH` is a fallback that auto-migrates on login) issues an HMAC-signed
+  HttpOnly cookie, 30-day TTL. `web/src/proxy.ts` guards every route and API.
+  Login is rate-limited to 5/min/IP with constant-time verification.
+- **Settings** (⚙ in the rail) — change passphrase, operator name, accent theme
+  (Terminal Amber / Cryo Cyan / Botanic / Nebula, applied app-wide from
+  `users.settings.theme`), toggle the vision pass, and configure the voice
+  agent. An OpenAI key set here is stored in the local DB and never reaches the
+  browser; blank falls back to `.env`. Lock the terminal with ⎋.
+- **Ports** — Postgres and MinIO bind to `127.0.0.1` only; ntfy binds to
+  localhost plus the Tailscale IP. Only the web app on 8742 is reachable.
+- **Passphrase recovery** — from the host shell:
 
-## Time capsules
+  ```bash
+  docker compose exec -T db psql -U memento -d memento \
+    -c "UPDATE users SET settings = settings - 'auth_hash';"
+  ```
 
-In the recorder's review step, **◍ Seal as Time Capsule** hides the entry
-until a delivery date — a message to future you. Sealed entries are invisible
+  Then remove `AUTH_HASH` from `.env`, restart `memento-web`, and re-claim the
+  terminal at `/register`.
+
+---
+
+## Feature reference
+
+### Search, Ask, and the catalog
+
+- **/search** — hybrid retrieval: semantic (nomic-embed-text via Ollama,
+  pgvector HNSW) fused with keyword (Postgres FTS) by reciprocal rank. Results
+  deep-link to the exact second (`/entry/:id?t=`). Degrades to keyword-only if
+  Ollama is down.
+- **Find ⇄ Ask** — Ask runs the question through the same retrieval plus the
+  local LLM and answers in your journal's own words, citing `[n]` sources that
+  each jump to the moment they came from. Fully local, no API cost.
+- **/catalog** — concepts extracted per entry by the LLM; every concept has a
+  page listing the entries that touch it.
+
+### Live agent
+
+`/live` is a full-duplex voice session (OpenAI Realtime over WebRTC; the
+browser connects directly and the server only mints ephemeral session tokens
+and serves the `search_journal` tool).
+
+Each session gets a generated brief: a question ladder (L0 check-in through L3
+depth, escalating only on engagement), recent entry summaries, recurring
+concepts, a no-fabrication rule — it must call `search_journal` before
+referencing your past — and companion-not-therapist guardrails. Ended sessions
+are saved as `live_session` entries and indexed like any other.
+
+Sessions are **recorded by default** (`rec: video ⇄` cycles video/audio/off
+before starting): your camera and mic mixed with the agent's voice, uploaded on
+session end. Recording and transcript share the session clock, so transcript
+lines seek the video. The worker never re-transcribes session recordings — the
+Realtime transcript already has correct you-vs-agent attribution — it only adds
+the thumbnail and true duration.
+
+A live **cost meter** shows an `≈$` estimate in the session header while you
+talk, saved to the entry's `cost_usd`. It is deliberately absent from entry
+pages: spend surfaces only in aggregate, on the Telemetry session-spend tile
+and in each weekly debrief header.
+
+### Presence and the avatar
+
+The `presence: ring ⇄ avatar` chip on `/live` switches the presence surface:
+
+- **ring** — audio-reactive: amber when Memento speaks, cyan when you do.
+- **avatar** — the AvatarForcing face (`assets/narrator.jpg`, the same face as
+  the recap narrator) in **delayed replay**. Each finished reply's audio is
+  rendered to a clip and played muted, since the real audio already played
+  live. On a GB10 this runs at roughly 5× realtime, so clips trail speech by
+  about 15–20s: a taste test, not lip-sync. The panel shows the narrator still
+  and a RENDERING chip while clips cook.
+
+Rendering prefers a warm daemon on port **8745** that keeps models loaded
+(`memento-avatar.service`). That service is **optional and off by default** —
+when it isn't listening, `/api/avatar/render` falls back to a cold subprocess
+run of `scripts/render_avatar.py`, which is slower but needs nothing resident.
+Set `AVATARFORCING_DIR` to enable either path; without it the route reports
+"not configured" and the ring presence still works. An earlier 3D-head surface
+remains, unused, in `AvatarHead.tsx`.
+
+### Listen Mode
+
+`mode: converse ⇄ listen` on `/live`. In Listen Mode Memento is a silent
+companion: it transcribes everything and the session still becomes an entry,
+but it speaks only when addressed by name — "Memento, …". Wake-word detection
+is client-side on the live transcript, and VAD runs with auto-response
+disabled, so silent listening costs almost nothing in output tokens.
+
+### Pins — reminders and notes
+
+Say "remind me…", "pin that", or "note that down" in any entry or live session
+and it lands on **/pins**, split into overdue / upcoming / notes / recently
+closed. Dates are resolved **deterministically in code** from your phrase
+("Monday", "tomorrow", "this weekend") — not by the LLM. Due reminders appear
+on the calendar (◪, red when overdue) and in that day's report. The live agent
+is briefed on what's due today and tomorrow, and has a `create_pin` tool to
+pin things mid-conversation.
+
+### Time capsules
+
+In the recorder's review step, **◍ Seal as Time Capsule** hides an entry until
+a delivery date — a message to future you. Sealed entries are invisible
 everywhere (timeline, search, calendar, export, media API) and aren't even
 transcribed until delivery day, when the worker unseals them into the normal
 pipeline and the morning briefing announces "a message from your past."
 
-## Listen Mode
+### Vault
 
-On /live, `mode: converse ⇄ listen`. In Listen Mode Memento is a silent
-companion: it transcribes everything (the session still becomes an entry) but
-speaks only when addressed by name — "Memento, …". Wake-word detection is
-client-side on the live transcript; VAD runs with auto-response disabled, so
-silent listening costs almost nothing in output tokens.
+**/vault** is where entries go when they leave the timeline, in two tabs:
 
-## Ask your journal
+- **Trash** — soft-deleted (`deleted_at`). Restoring puts an entry straight
+  back on the timeline; the media file was never removed from storage.
+- **Archive** — set aside deliberately (`archived_at`). Archived entries stay
+  in the log and stay searchable; they just don't crowd the timeline.
 
-/search has **Find ⇄ Ask**. Ask runs the question through hybrid retrieval +
-the local LLM and answers in your own journal's words, citing [n] sources that
-deep-link to the exact video second. Fully local — no API cost.
+Purging is the **only destructive path in the app**, and it is deliberately
+narrow: only rows already in the trash can be purged, so nothing on the
+timeline or in the archive can be destroyed by a stray request. It is scoped to
+the operator, requires explicit multi-select plus confirmation, and removes the
+media objects after the row. A storage failure is logged rather than failing
+the request — a stray object is recoverable, a half-deleted row is not.
 
-## Life Story program
+### Flags and export
 
-/story — a seeded interview program (24 topics across 9 chapters). Say "story
-time" in a live session and the agent offers the next topic; or just record an
-entry telling one of the stories — the reflection pass recognizes substantial
-tellings and checks the topic off, linking it to the entry.
+Hover any transcript line and hit **⚑** to flag a moment, stored as a `user`
+annotation. The indexing LLM also proposes `action_item` and `insight` flags
+from the transcript, collected in each entry's "Flagged Moments" panel (✕ to
+dismiss).
 
-## Visual log
+**⬇ Export Archive** on the timeline streams a zip containing
+`memento-export.json` with full metadata, plus per-entry transcripts and
+original media.
+
+### Threads and the rapport profile
+
+**/profile** is the agent's model of you, fully visible and editable:
+
+- **Open threads** — unresolved loops it follows up across sessions. Resolve ✓,
+  drop ✕, or add your own.
+- **Rapport profile** — goals, values, people, preferences, sensitivities,
+  context. Delete anything, add anything.
+
+After every indexed entry the worker runs a **reflection pass**: it opens new
+threads, resolves the ones the entry settles, and adds genuinely new profile
+facts. Live sessions read open threads and profile in their instructions and
+weave in at most one or two, naturally.
+
+### Life Story program
+
+**/story** — a seeded interview program of 24 topics across 9 chapters. Say
+"story time" in a live session and the agent offers the next topic; or just
+record an entry telling one of the stories. The reflection pass recognizes
+substantial tellings, checks the topic off, and links it to the entry.
+
+### Visual log
 
 The indexing pass shows three frames of each video entry to a local VLM
-(`VISION_MODEL`, qwen2.5-VL) — scene, appearance, energy. Appears as the
-"Visual Log" line on entries and feeds the day reports. Toggle in ⚙ Settings;
-runs entirely on the DGX.
+(`VISION_MODEL`, qwen2.5-VL) and records scene, appearance, and energy. It
+appears as the "Visual Log" line on entries and feeds the day reports.
+Toggle it in ⚙ Settings; it runs entirely on local hardware.
 
-## Morning briefing & weekly debriefs
+### Mission calendar and day reports
 
-- **Briefing** — cron 08:00 runs `scripts/briefing.py`: SOL, due/overdue
-  reminders, open threads, yesterday's report, logging streak → pushed via
-  the self-hosted **ntfy** container (port 8744).
-- **Evening nudge** — cron 21:00 runs `scripts/nudge.py`: fires ONLY if
-  nothing was logged that day (streak warning + a hook: open thread, next
-  story topic, or tomorrow's reminder). Silent on logged days. Subscribe on your phone:
-  ntfy app → add server `http://<tailscale-ip>:8744` (Tailscale IP) → topic
-  your `NTFY_TOPIC` from `.env`. Deterministic — no LLM in the wake-up path.
-- **/debriefs** — MISSION WEEK reports compiled by the worker once a week
-  completes (Mon–Sun): the week's story, highlights, a patterns observation,
-  and week mood. Recompiles if a past week's entries change.
-- Each debrief also gets a **recap video**: ffmpeg cuts the week's flagged
-  moments (intro title card + up to 6 clips), with an agent voiceover of the
-  summary via OpenAI TTS (`TTS_MODEL`/`TTS_VOICE`; ships without narration if
-  no key). Plays inline on /debriefs.
+**/calendar** — a month grid with activity pips per day (▮ video · ◉ audio ·
+◈ live session), day mood, and a ▣ marker once the report exists. Clicking a
+day opens it: an LLM-compiled narrative, highlights, day mood, and that day's
+entries.
 
-## Stats & starmap
+Reports compile **after the day ends** (the worker checks every ~5 minutes, so
+completed days appear shortly after midnight). If a past day's entries later
+change, its report recompiles — or is removed if the day empties. Postgres runs
+on `America/New_York` so days group by local time.
+
+### Morning briefing and weekly debriefs
+
+- **Briefing** — cron 08:00 runs `scripts/briefing.py`: SOL, due and overdue
+  reminders, open threads, yesterday's report, and the logging streak, pushed
+  through the self-hosted ntfy container.
+- **Evening nudge** — cron 21:00 runs `scripts/nudge.py`, and fires **only** if
+  nothing was logged that day: a streak warning plus one hook (an open thread,
+  the next story topic, or tomorrow's reminder). Silent on logged days. No LLM
+  anywhere in the wake-up path.
+- Subscribe on your phone: ntfy app → add server `http://<tailscale-ip>:8744` →
+  topic `NTFY_TOPIC`.
+- **/debriefs** — MISSION WEEK reports compiled once a week completes
+  (Mon–Sun): the week's story, highlights, a patterns observation, and week
+  mood. Recompiles if a past week's entries change.
+- Each debrief also gets a **recap video**: an intro title card, then an
+  AvatarForcing narrator speaking the week's summary, then the week's flagged
+  clips. The narrator speaks with the agent's configured voice (Settings →
+  Voice Agent, or `TTS_VOICE`) via OpenAI TTS. Every failure degrades
+  gracefully: no face → voiceover only; no key → silent clips only. Plays
+  inline on /debriefs.
+
+### Telemetry and starmap
 
 - **/stats** — stat tiles (SOL, streak, entries, minutes, concepts, spend),
-  30-day entries/minutes bars with hover tooltips, a mood valence strip
-  (positive/neutral/heavy, hover for the word), top concepts, and a plain
+  30-day entries and minutes bars with hover tooltips, a mood valence strip
+  (positive / neutral / heavy, hover for the word), top concepts, and a plain
   data table. Chart mark colors are CVD-validated against the dark surface
-  (`src/lib/mood.ts` CHART) — distinct from the lighter UI accent tints.
+  (`src/lib/mood.ts` `CHART`) and deliberately distinct from the lighter UI
+  accent tints.
 - **/starmap** — the memory constellation: concepts as glowing stars (size =
   entries touched, color = kind), co-occurrence filaments, hover to light a
-  star's connections, click to open its catalog page. Layout settles
-  synchronously with a cooling schedule (no live physics — cannot explode).
+  star's connections, click to open its catalog page. The layout settles
+  synchronously on a cooling schedule — no live physics, so it cannot explode.
 
-## Mission calendar & day reports
-
-**/calendar** — month grid with activity pips per day (▮ video · ◉ audio ·
-◈ live session), mood, and a ▣ marker once the day report exists. Clicking a
-day opens its report: an LLM-compiled narrative of the day, highlights, day
-mood, and that day's entries. Reports compile **after the day ends** (the
-worker checks every ~5 min, so completed days appear shortly after midnight);
-if a past day's entries later change (import/delete), its report recompiles —
-or is removed if the day empties. Postgres runs on America/New_York
-(ALTER SYSTEM) so days group by local time.
-
-## Security
-
-- **Auth**: passphrase login (scrypt hash stored in the users row; legacy
-  `.env` `AUTH_HASH` is a fallback that auto-migrates on login) → HMAC-signed
-  HttpOnly cookie (30d) → `src/proxy.ts` guards every route and API. Login is
-  rate-limited (5/min/IP) with constant-time verification.
-  **⚙ Settings in the nav**: change passphrase, operator name, theme
-  (Terminal Amber / Cryo Cyan / Botanic / Nebula — accent presets applied
-  app-wide from `users.settings.theme`), vision toggle, and the voice agent
-  (voice, realtime model, and an OpenAI API key override stored in the local
-  DB; blank = fall back to `.env`; the key never reaches the browser).
-  Lock with ⎋.
-  **/register** claims the terminal on first run only; it is closed once an
-  operator exists. Forgot the passphrase? Reset from the DGX shell:
-  `docker compose exec -T db psql -U memento -d memento -c "UPDATE users SET settings = settings - 'auth_hash';"`
-  then remove `AUTH_HASH` from `.env`, restart memento-web, and re-claim at /register.
-- **Ports**: Postgres and MinIO bind to 127.0.0.1 only; ntfy binds to
-  127.0.0.1 + the Tailscale IP. Only the web app (8742) is reachable.
-- **Backups**: nightly cron also stages an AES-256 encrypted copy of the
-  latest dump in `~/memento-backups/offsite/` (`BACKUP_KEY` in `.env` —
-  keep a copy of that key somewhere NOT on this machine). Set `OFFSITE_CMD`
-  in `.env` (rclone/rsync line syncing `$HOME/memento-backups/offsite`) to
-  actually ship them offsite; until then the log warns nightly.
-  Decrypt: `openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:$BACKUP_KEY" -in x.enc -out x.dump`
+---
 
 ## Known limits
 
-- Whisper runs on CPU (aarch64 ctranslate2 wheel has no CUDA). Fine for daily
-  entries; option: whisper.cpp with CUDA for the GB10.
+- Whisper runs on CPU: the aarch64 ctranslate2 wheel has no CUDA build. This is
+  fine for daily entries; whisper.cpp with CUDA is the option if it starts to
+  hurt.
+- The live avatar is delayed replay, not realtime lip-sync — see
+  [Presence and the avatar](#presence-and-the-avatar).
+- Semantic search and Ask need Ollama reachable for query embedding; both
+  degrade to keyword-only when it isn't.
 
-## Remaining roadmap
+## Roadmap
 
-- Offsite backup destination (`OFFSITE_CMD` — deferred; encrypted bundles
-  stage locally meanwhile).
+- Offsite backup destination (`OFFSITE_CMD` — encrypted bundles stage locally
+  meanwhile).
 - Voice-only quick capture (push-to-talk memo).
-- Native mobile app (Expo) when the PWA's limits chafe.
-- The photoreal face — waiting on Wan-Streamer-class open weights
-  (paper 2606.25041); the renderer boundary is ready.
+- Native mobile app (Expo), when the PWA's limits start to chafe.
+- The photoreal face, waiting on Wan-Streamer-class open weights; the renderer
+  boundary is already in place.

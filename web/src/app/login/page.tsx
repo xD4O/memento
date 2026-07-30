@@ -41,14 +41,15 @@ function LoginConsole() {
   };
 
   return (
-    <main className="flex min-h-[80vh] items-center justify-center px-5">
-      <div className="panel w-full max-w-md px-8 py-10">
-        <div className="mono mb-1 text-center font-bold" style={{ color: "var(--amber)", letterSpacing: ".3em" }}>
-          MEMENTO TERMINAL
+    <main className="lock-wrap stage-pad">
+      <div className="panel lock-card">
+        <div className="lock-ring" aria-hidden="true" />
+        <div className="wordmark" style={{ display: "block", marginBottom: 8 }}>
+          MEMENT<span className="dot">O</span>
         </div>
-        <div className="label mb-8 text-center">
-          identify to access the personal log
-        </div>
+        <p className="label" style={{ marginBottom: 22 }}>
+          Personal log · operator access required
+        </p>
         <input
           ref={inputRef}
           type="password"
@@ -57,13 +58,8 @@ function LoginConsole() {
           onKeyDown={(e) => e.key === "Enter" && submit()}
           placeholder="operator passphrase"
           autoComplete="current-password"
-          className="mono w-full px-4 py-3 text-center outline-none"
-          style={{
-            background: "var(--panel-2)",
-            border: "1px solid var(--line)",
-            color: "var(--text-bright)",
-            letterSpacing: ".15em",
-          }}
+          className="field"
+          style={{ textAlign: "center", letterSpacing: ".3em" }}
         />
         <button className="btn mt-4 w-full justify-center" onClick={submit} disabled={busy}>
           {busy ? "Verifying…" : "▸ Identify"}

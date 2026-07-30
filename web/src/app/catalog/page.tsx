@@ -35,12 +35,10 @@ export default async function CatalogPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-5 pb-24 pt-10">
-      <div className="mb-8 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Concept Catalog
-        </span>
-        <span className="label">
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Concept Catalog</h1>
+        <span className="sub">
           {rows.length} concepts flagged across the log
         </span>
       </div>
@@ -55,28 +53,27 @@ export default async function CatalogPage() {
 
       <div className="flex flex-col gap-8">
         {KIND_ORDER.filter((k) => byKind.has(k)).map((kind) => (
-          <section key={kind}>
-            <h2 className="label mb-3" style={{ color: "var(--cyan)" }}>
-              {KIND_LABEL[kind]} · {byKind.get(kind)!.length}
-            </h2>
-            <div className="flex flex-wrap gap-2">
+          <section key={kind} className="panel" style={{ padding: "14px 16px 16px" }}>
+            <div className="panel-hd">
+              <span className="label">{KIND_LABEL[kind]}</span>
+              <span className="spacer" />
+              <span className="label">{byKind.get(kind)!.length}</span>
+            </div>
+            <div className="tag-cloud">
               {byKind.get(kind)!.map((c) => (
                 <Link
                   key={c.id}
                   href={`/catalog/${c.id}`}
-                  className="panel px-3 py-1.5 text-sm transition-colors hover:border-[var(--line)]"
-                  style={{ color: "var(--text-bright)" }}
+                  className={`tag k-${c.kind}`}
                 >
                   {c.name}
-                  <span className="mono ml-2 text-xs" style={{ color: "var(--dim)" }}>
-                    {c.entry_count}
-                  </span>
+                  <span className="n">{c.entry_count}</span>
                 </Link>
               ))}
             </div>
           </section>
         ))}
       </div>
-    </main>
+    </div>
   );
 }

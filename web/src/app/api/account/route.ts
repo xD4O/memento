@@ -12,6 +12,16 @@ export async function GET() {
     `SELECT settings->>'display_name' AS name,
             coalesce(settings->>'vision_enabled', 'true') <> 'false' AS vision,
             coalesce(settings->>'theme', 'amber') AS theme,
+            settings->>'accent' AS accent,
+            settings->>'signal' AS signal,
+            coalesce(settings->>'glow', 'subtle') AS glow,
+            coalesce(settings->>'edge', 'on') AS edge,
+            coalesce(settings->>'ground', 'void') AS ground,
+            coalesce(settings->>'grid', 'off') AS grid,
+            coalesce(settings->>'density', 'comfortable') AS density,
+            coalesce(settings->>'void_field', 'stars') AS void_field,
+            coalesce(settings->>'tempo', 'quick') AS tempo,
+            coalesce(settings->>'pulse', 'standard') AS pulse,
             settings->>'voice' AS voice,
             settings->>'realtime_model' AS realtime_model,
             settings->>'openai_key' IS NOT NULL AS has_key_override,
@@ -60,6 +70,61 @@ export async function PATCH(req: NextRequest) {
     await setSetting("theme", body.theme);
     return NextResponse.json({ ok: true });
   }
+  // Custom accent: a single hex colour that overrides the preset's primary.
+  // Anything else is rejected outright — this value lands in a style attribute.
+  if (typeof body.accent === "string") {
+    const a = body.accent.trim();
+    if (a === "") {
+      await setSetting("accent", null);
+    } else if (/^#[0-9a-fA-F]{6}$/.test(a)) {
+      await setSetting("accent", a.toLowerCase());
+    } else {
+      return NextResponse.json(
+        { error: "accent must be a #rrggbb hex colour" },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  // Appearance enums — each validated against its whitelist so only known
+  // values ever reach a data attribute.
+  const ENUMS: Record<string, string[]> = {
+    glow: ["off", "subtle", "normal", "bright"],
+    edge: ["off", "static", "on"],
+    ground: ["void", "slate", "carbon", "oxide"],
+    grid: ["off", "on", "bold"],
+    density: ["comfortable", "compact"],
+    void_field: ["off", "stars", "deep"],
+    tempo: ["calm", "normal", "quick"],
+    pulse: ["standard", "smooth"],
+  };
+  for (const [key, allowed] of Object.entries(ENUMS)) {
+    const v = body[key];
+    if (typeof v === "string") {
+      if (!allowed.includes(v))
+        return NextResponse.json(
+          { error: `${key} must be one of ${allowed.join(", ")}` },
+          { status: 400 }
+        );
+      await setSetting(key, v);
+      return NextResponse.json({ ok: true });
+    }
+  }
+
+  // Secondary accent — the "signal" hue used for attention states.
+  if (typeof body.signal === "string") {
+    const v = body.signal.trim();
+    if (v === "") await setSetting("signal", null);
+    else if (/^#[0-9a-fA-F]{6}$/.test(v)) await setSetting("signal", v.toLowerCase());
+    else
+      return NextResponse.json(
+        { error: "signal must be a #rrggbb hex colour" },
+        { status: 400 }
+      );
+    return NextResponse.json({ ok: true });
+  }
+
   if (typeof body.voice === "string") {
     if (!VOICES.includes(body.voice))
       return NextResponse.json({ error: "unknown voice" }, { status: 400 });

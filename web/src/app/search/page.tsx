@@ -90,11 +90,9 @@ export default function SearchPage() {
   }, [q, mode]);
 
   return (
-    <main className="mx-auto max-w-4xl px-5 pb-24 pt-10">
-      <div className="mb-6 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Memory Search
-        </span>
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Memory Search</h1>
         <span className="label">semantic + keyword across all transcripts</span>
         <span className="ml-auto flex gap-2">
           <button
@@ -193,6 +191,6 @@ export default function SearchPage() {
           </Link>
         ))}
       </div>
-    </main>
+    </div>
   );
 }

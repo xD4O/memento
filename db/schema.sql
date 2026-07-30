@@ -200,3 +200,9 @@ CREATE INDEX IF NOT EXISTS segments_embedding_hnsw
 INSERT INTO users (id)
 VALUES ('00000000-0000-0000-0000-000000000001')
 ON CONFLICT (id) DO NOTHING;
+
+-- Archive: entries set aside from the timeline without deleting them.
+-- Trash is deleted_at (recoverable); archive is archived_at (intentional).
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+CREATE INDEX IF NOT EXISTS entries_archived ON entries (user_id, archived_at DESC)
+  WHERE archived_at IS NOT NULL AND deleted_at IS NULL;

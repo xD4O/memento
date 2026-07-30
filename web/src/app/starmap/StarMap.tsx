@@ -209,17 +209,15 @@ export default function StarMap() {
   }, [router]);
 
   return (
-    <main className="mx-auto max-w-6xl px-5 pb-24 pt-10">
-      <div className="mb-4 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Memory Starmap
-        </span>
-        <span className="label">
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Memory Starmap</h1>
+        <span className="sub">
           every concept a star · shared entries draw the filaments · click to open
         </span>
       </div>
       <div
-        className="panel relative overflow-hidden"
+        className="starfield relative overflow-hidden"
         style={{ height: "68vh", background: "#07090D" }}
       >
         <canvas ref={canvasRef} className="h-full w-full" />
@@ -229,7 +227,7 @@ export default function StarMap() {
           </div>
         )}
       </div>
-      <div className="label mt-3 flex flex-wrap gap-5">
+      <div className="cal-legend mt-3">
         <span><span style={{ color: CHART.amber }}>●</span> projects</span>
         <span><span style={{ color: CHART.cyan }}>●</span> people</span>
         <span><span style={{ color: CHART.violet }}>●</span> ideas &amp; themes</span>
@@ -237,6 +235,6 @@ export default function StarMap() {
         <span><span style={{ color: FALLBACK }}>●</span> other</span>
         <span className="ml-auto">star size = entries touched</span>
       </div>
-    </main>
+    </div>
   );
 }

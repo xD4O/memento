@@ -49,3 +49,37 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   );
   return NextResponse.json({ ok: true });
 }
+
+/** Vault actions: move an entry between the timeline, the archive and the trash.
+ *  All three are reversible and none touch stored media. There is deliberately
+ *  no permanent-delete action — trash is a holding area, not a shredder. */
+const ACTIONS: Record<string, string> = {
+  restore: `UPDATE entries SET deleted_at = NULL
+             WHERE id = $1 AND user_id = $2 AND deleted_at IS NOT NULL`,
+  archive: `UPDATE entries SET archived_at = now()
+             WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+               AND archived_at IS NULL`,
+  unarchive: `UPDATE entries SET archived_at = NULL
+               WHERE id = $1 AND user_id = $2 AND archived_at IS NOT NULL`,
+};
+
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const { id } = await ctx.params;
+  const body = await req.json().catch(() => ({}));
+  const action = String(body.action ?? "");
+  const sql = ACTIONS[action];
+  if (!sql) {
+    return NextResponse.json(
+      { error: `unknown action; expected one of ${Object.keys(ACTIONS).join(", ")}` },
+      { status: 400 }
+    );
+  }
+  const res = await db.query(sql, [id, USER_ID]);
+  if (res.rowCount === 0) {
+    return NextResponse.json(
+      { error: "entry not found, or already in that state" },
+      { status: 404 }
+    );
+  }
+  return NextResponse.json({ ok: true, action });
+}

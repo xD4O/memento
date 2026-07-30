@@ -140,6 +140,15 @@ export default function EntryView({
     }
   };
 
+  const archive = async () => {
+    await fetch(`/api/entries/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "archive" }),
+    });
+    router.push("/vault");
+  };
+
   const del = async () => {
     if (
       !confirm(
@@ -154,16 +163,16 @@ export default function EntryView({
 
   if (notFound)
     return (
-      <main className="mx-auto max-w-4xl px-5 pt-16">
+      <div className="stage-pad">
         <p className="mono" style={{ color: "var(--red)" }}>ENTRY NOT FOUND</p>
-      </main>
+      </div>
     );
 
   if (!entry)
     return (
-      <main className="mx-auto max-w-4xl px-5 pt-16">
+      <div className="stage-pad">
         <p className="label pulse">Retrieving entry…</p>
-      </main>
+      </div>
     );
 
   const pending = PENDING.has(entry.status);
@@ -174,17 +183,14 @@ export default function EntryView({
   const transcriptOnly = entry.kind === "live_session" && !hasMedia;
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pb-24 pt-8">
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        <span className="mono text-xs" style={{ color: "var(--amber)", letterSpacing: ".15em" }}>
-          SOL {String(entry.sol).padStart(3, "0")}
-        </span>
-        <h1 className="flex-1 truncate text-lg" style={{ color: "var(--text-bright)" }}>
-          {entry.title ?? "Untitled entry"}
-        </h1>
-        <span className="label">
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Entry</h1>
+        <span className="sub">
+          Sol {String(entry.sol).padStart(3, "0")} ·{" "}
           {entry.recorded_at.slice(0, 16).replace("T", " ")}Z
         </span>
+        <span className="spacer" />
         {entry.status === "indexed" ? (
           <span className="chip dim">indexed</span>
         ) : entry.status === "error" ? (
@@ -192,10 +198,24 @@ export default function EntryView({
         ) : (
           <span className="chip pulse">{entry.status}</span>
         )}
+        <button className="btn" onClick={archive} style={{ padding: ".35em .8em" }}>
+          ⛁ Archive
+        </button>
         <button className="btn danger" onClick={del} style={{ padding: ".35em .8em" }}>
           ✕ Delete Entry
         </button>
       </div>
+
+      <h2
+        style={{
+          fontSize: "1.4rem",
+          color: "var(--text-bright)",
+          marginBottom: 10,
+          overflowWrap: "anywhere",
+        }}
+      >
+        {entry.title ?? "Untitled entry"}
+      </h2>
 
       {entry.vision?.scene && (
         <p className="mb-3 text-sm" style={{ color: "var(--dim)" }}>
@@ -225,13 +245,13 @@ export default function EntryView({
           </div>
           <ul className="flex flex-col gap-1.5">
             {annotations.map((a) => (
-              <li key={a.id} className="flex items-center gap-3 text-sm">
+              <li key={a.id} className="fact">
                 <span className="mono" style={{ color: a.source === "agent" ? "var(--amber)" : "var(--cyan)" }}>
                   {ANNOTATION_ICON[a.type] ?? "⚑"}
                 </span>
-                <span style={{ color: "var(--text-bright)" }}>{a.label}</span>
+                <span className="txt">{a.label}</span>
                 <span className="chip dim">{a.type.replace("_", " ")}</span>
-                <span className="label">{a.source}</span>
+                <span className="src">{a.source}</span>
                 {a.t_start != null && (hasMedia || entry.kind !== "live_session") && (
                   <button
                     className="mono text-xs"
@@ -273,7 +293,8 @@ export default function EntryView({
             />
           </div>
         ) : (
-          <div className="panel relative overflow-hidden" style={{ aspectRatio: "16/9", alignSelf: "start" }}>
+          <div className="scope relative overflow-hidden" style={{ aspectRatio: "16/9", alignSelf: "start" }}>
+            <div className="hud-corners" aria-hidden="true" />
             <video
               ref={videoRef}
               src={`/api/entries/${id}/media`}
@@ -363,6 +384,6 @@ export default function EntryView({
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

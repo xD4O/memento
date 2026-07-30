@@ -113,11 +113,9 @@ export default function CalendarPage() {
   ];
 
   return (
-    <main className="mx-auto max-w-6xl px-5 pb-24 pt-10">
-      <div className="mb-6 flex items-baseline gap-4 border-b pb-3" style={{ borderColor: "var(--line)" }}>
-        <span className="label" style={{ color: "var(--amber)" }}>
-          Mission Calendar
-        </span>
+    <div className="stage-pad">
+      <div className="view-hd">
+        <h1>Mission Calendar</h1>
         <span className="ml-auto flex items-center gap-4">
           <button className="btn" style={{ padding: ".25em .8em" }} onClick={() => nav(-1)}>
             ‹
@@ -131,18 +129,18 @@ export default function CalendarPage() {
         </span>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+      <div className="split wide">
         <div>
-          <div className="mb-1 grid grid-cols-7 gap-1">
+          <div className="cal-grid">
             {WEEKDAYS.map((w) => (
-              <div key={w} className="label py-1 text-center">
+              <div key={w} className="cal-dow">
                 {w}
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-1">
+          <div className="cal-grid">
             {grid.map((date, i) => {
-              if (!date) return <div key={`x${i}`} />;
+              if (!date) return <div key={`x${i}`} className="day void" aria-hidden="true" />;
               const cell = cells.get(date);
               const pd = pinDays.get(date);
               const isToday = date === today;
@@ -151,30 +149,23 @@ export default function CalendarPage() {
                 <button
                   key={date}
                   onClick={() => openDay(date)}
-                  className="panel relative flex h-20 flex-col items-start p-2 text-left transition-colors hover:border-[var(--line)]"
-                  style={{
-                    borderColor: isSel
-                      ? "var(--amber)"
-                      : isToday
-                        ? "rgba(89,210,222,.5)"
-                        : undefined,
-                    borderStyle: isToday && !isSel ? "dashed" : "solid",
-                    background: cell ? "var(--panel)" : "transparent",
-                    opacity: cell || isToday || pd ? 1 : 0.55,
-                    cursor: "pointer",
-                  }}
+                  className={
+                    "day" +
+                    (cell ? "" : " empty") +
+                    (isToday ? " today" : "") +
+                    (isSel ? " sel" : "") +
+                    (cell?.mood ? " m-pos" : "")
+                  }
+                  style={{ cursor: "pointer" }}
                 >
-                  <span className="flex w-full items-baseline">
-                    <span
-                      className="mono text-xs"
-                      style={{ color: isToday ? "var(--cyan)" : "var(--dim)" }}
-                    >
-                      {Number(date.slice(-2))}
+                  <span className="day-top">
+                    <span className="dnum">
+                      {String(Number(date.slice(-2))).padStart(2, "0")}
                     </span>
                     {pd && (
                       <span
-                        className="mono ml-auto text-[0.62rem]"
-                        style={{ color: pd.has_overdue ? "var(--red)" : "var(--amber)" }}
+                        className="due-flag"
+                        style={{ color: pd.has_overdue ? "var(--crit)" : "var(--cyan)" }}
                         title={`${pd.pin_count} reminder(s) due`}
                       >
                         ◪{pd.pin_count > 1 ? pd.pin_count : ""}
@@ -183,29 +174,18 @@ export default function CalendarPage() {
                   </span>
                   {cell && (
                     <>
-                      <span className="mt-1 flex flex-wrap gap-0.5 text-[0.7rem] leading-none">
+                      <span className="day-marks">
                         {cell.kinds.slice(0, 3).map((k) => (
-                          <span key={k} style={{ color: KIND_GLYPH[k]?.color }}>
-                            {KIND_GLYPH[k]?.glyph}
-                          </span>
+                          <i key={k} className={`mk-${k}`} title={k.replace("_", " ")} />
                         ))}
-                        <span className="mono ml-1" style={{ color: "var(--dim)", fontSize: ".62rem" }}>
-                          ×{cell.entry_count}
-                        </span>
+                        <span className="ct">×{cell.entry_count}</span>
                       </span>
+                      {cell.mood && <span className="day-mood">{cell.mood}</span>}
                       {cell.has_summary && (
                         <span
-                          className="absolute bottom-1.5 right-2 mono text-[0.6rem]"
-                          style={{ color: "var(--amber-dim, rgba(255,180,84,.55))" }}
+                          className="report-dot"
                           title="day report compiled"
-                        >
-                          ▣
-                        </span>
-                      )}
-                      {cell.mood && (
-                        <span className="mt-auto label" style={{ fontSize: ".58rem" }}>
-                          {cell.mood}
-                        </span>
+                        />
                       )}
                     </>
                   )}
@@ -213,12 +193,12 @@ export default function CalendarPage() {
               );
             })}
           </div>
-          <div className="mt-3 flex gap-5">
-            <span className="label"><span style={{ color: "var(--amber)" }}>▮</span> video</span>
-            <span className="label"><span style={{ color: "var(--cyan)" }}>◉</span> audio</span>
-            <span className="label"><span style={{ color: "var(--cyan)" }}>◈</span> live session</span>
-            <span className="label"><span style={{ color: "rgba(255,180,84,.55)" }}>▣</span> day report</span>
-            <span className="label"><span style={{ color: "var(--amber)" }}>◪</span> reminder due</span>
+          <div className="cal-legend">
+            <span><i className="mk-video_log" style={{ width: 6, height: 6, borderRadius: "50%", display: "inline-block" }} /><span className="label">video</span></span>
+            <span><i className="mk-audio_log" style={{ width: 6, height: 6, borderRadius: "50%", display: "inline-block" }} /><span className="label">audio</span></span>
+            <span><i className="mk-live_session" style={{ width: 6, height: 6, borderRadius: "50%", display: "inline-block" }} /><span className="label">live session</span></span>
+            <span><i style={{ width: 4, height: 4, background: "var(--ok)", boxShadow: "0 0 8px var(--ok)", display: "inline-block" }} /><span className="label">day report</span></span>
+            <span><span className="label" style={{ color: "var(--crit)" }}>◪</span><span className="label">reminder due</span></span>
           </div>
         </div>
 
@@ -330,6 +310,6 @@ export default function CalendarPage() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

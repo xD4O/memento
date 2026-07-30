@@ -38,6 +38,8 @@ COMPUTE = os.environ.get("WHISPER_COMPUTE", "int8")
 POLL_S = float(os.environ.get("WORKER_POLL_S", "2"))
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
+# first attempt for title/summary/mood; the retry doubles it
+LLM_META_TIMEOUT = int(os.environ.get("LLM_META_TIMEOUT", "300"))
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "nomic-embed-text")
 VISION_MODEL = os.environ.get("VISION_MODEL", "qwen2.5vl:7b")
 USER_ID = os.environ.get("MEMENTO_USER_ID", "00000000-0000-0000-0000-000000000001")
@@ -587,8 +589,10 @@ def _norm_clip(src: Path, start: float, dur: float, out: Path) -> bool:
         return False
 
 
-def _tts(text: str, out: Path) -> bool:
-    """Voiceover via OpenAI TTS; recap ships silent-narration if unavailable."""
+def _tts(text: str, out: Path, voice: str = "marin") -> bool:
+    """Voiceover via OpenAI TTS; recap ships silent-narration if unavailable.
+    Voice priority: TTS_VOICE env override > the agent's configured voice —
+    so the narrator sounds like the Memento you talk to."""
     import urllib.request
     key = os.environ.get("OPENAI_API_KEY")
     if not key or not text:
@@ -596,7 +600,7 @@ def _tts(text: str, out: Path) -> bool:
     try:
         body = json.dumps({
             "model": os.environ.get("TTS_MODEL", "gpt-4o-mini-tts"),
-            "voice": os.environ.get("TTS_VOICE", "ash"),
+            "voice": os.environ.get("TTS_VOICE") or voice,
             "input": text[:2000],
         }).encode()
         req = urllib.request.Request(
@@ -609,6 +613,55 @@ def _tts(text: str, out: Path) -> bool:
     except Exception as e:  # noqa: BLE001
         print(f"[worker] recap voiceover skipped: {e}", flush=True)
         return False
+
+
+def _narrate(vo_mp3: Path, tmpdir: str) -> Path | None:
+    """Offline AvatarForcing: the narrator face speaks the voiceover.
+    Slow (~5x realtime on GB10) but the recap compiles overnight. Best-effort —
+    any failure falls back to the voiceover-over-clips mix."""
+    af_dir = os.environ.get("AVATARFORCING_DIR")
+    ref = os.environ.get("NARRATOR_REF")
+    if not af_dir or not ref or not Path(ref).exists():
+        return None
+    vo_wav = Path(tmpdir) / "narrator-vo.wav"
+    out = Path(tmpdir) / "narrator.mp4"
+    try:
+        subprocess.run(
+            ["ffmpeg", "-nostdin", "-y", "-i", str(vo_mp3),
+             "-t", "29", "-ac", "1", "-ar", "16000", str(vo_wav)],
+            check=True, capture_output=True, timeout=60,
+        )
+        dur = media_duration(vo_wav) or 29
+        # the model requires user streams; a silent, motionless "listener"
+        # (viewer) makes it a pure narrator
+        silent = Path(tmpdir) / "narrator-silent.wav"
+        subprocess.run(
+            ["ffmpeg", "-nostdin", "-y", "-f", "lavfi",
+             "-i", "anullsrc=r=16000:cl=mono", "-t", str(dur), str(silent)],
+            check=True, capture_output=True, timeout=60,
+        )
+        still_dir = Path(tmpdir) / "narrator-user"
+        still_dir.mkdir(exist_ok=True)
+        src_frames = sorted(Path(af_dir, "data", "user").glob("*.jpg"))
+        if not src_frames:
+            return None
+        n_frames = int(dur * 25) + 30
+        for i in range(n_frames):
+            (still_dir / f"{i:05d}.jpg").write_bytes(src_frames[0].read_bytes())
+        subprocess.run(
+            [f"{af_dir}/.venv/bin/python", "inference.py",
+             "--avatar_ref_path", ref,
+             "--avatar_audio_path", str(vo_wav),
+             "--user_audio_path", str(silent),
+             "--user_video_path", str(still_dir),
+             "--res_video_path", str(out),
+             "--nfe", "10"],
+            check=True, capture_output=True, timeout=1800, cwd=af_dir,
+        )
+        return out if out.exists() and out.stat().st_size > 10000 else None
+    except Exception as e:  # noqa: BLE001
+        print(f"[worker] narrator skipped: {e}", flush=True)
+        return None
 
 
 def generate_weekly_recap(conn, week_start, summary: str, mood: str | None):
@@ -692,16 +745,38 @@ def generate_weekly_recap(conn, week_start, summary: str, mood: str | None):
         script = f"Mission week {int(mission_week)}. {summary}"
         if mood:
             script += f" Overall mood: {mood}."
-        if _tts(script, vo):
-            subprocess.run(
-                ["ffmpeg", "-nostdin", "-y", "-i", str(base), "-i", str(vo),
-                 "-filter_complex",
-                 "[0:a]volume=0.3[a0];[a0][1:a]amix=inputs=2:duration=first:"
-                 "dropout_transition=3[a]",
-                 "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac",
-                 str(final)],
-                check=True, capture_output=True, timeout=180,
-            )
+        agent_voice = conn.execute(
+            """SELECT coalesce(settings->>'voice', %s) FROM users WHERE id = %s""",
+            (os.environ.get("REALTIME_VOICE", "marin"), USER_ID),
+        ).fetchone()[0]
+        if _tts(script, vo, voice=agent_voice):
+            narrator = _narrate(vo, td)
+            if narrator:
+                # narrator opens the recap speaking the summary, then the clips
+                norm_narr = tdp / "00b-narrator.mp4"
+                if _norm_clip(narrator, 0, 30, norm_narr):
+                    concat2 = tdp / "list2.txt"
+                    concat2.write_text(
+                        f"file '{parts[0]}'\nfile '{norm_narr}'\n"
+                        + "".join(f"file '{p}'\n" for p in parts[1:])
+                    )
+                    subprocess.run(
+                        ["ffmpeg", "-nostdin", "-y", "-f", "concat", "-safe", "0",
+                         "-i", str(concat2), "-c", "copy", str(final)],
+                        check=True, capture_output=True, timeout=180,
+                    )
+                else:
+                    narrator = None
+            if not narrator:
+                subprocess.run(
+                    ["ffmpeg", "-nostdin", "-y", "-i", str(base), "-i", str(vo),
+                     "-filter_complex",
+                     "[0:a]volume=0.3[a0];[a0][1:a]amix=inputs=2:duration=first:"
+                     "dropout_transition=3[a]",
+                     "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac",
+                     str(final)],
+                    check=True, capture_output=True, timeout=180,
+                )
         else:
             final = base
 
@@ -882,27 +957,87 @@ def llm_metadata(transcript: str) -> dict | None:
         "stream": False,
         "options": {"temperature": 0.3},
     }).encode()
-    try:
-        req = urllib.request.Request(
-            f"{OLLAMA_URL}/api/chat", data=body,
-            headers={"Content-Type": "application/json"},
+    # One timeout here costs the entry its title, summary AND mood at once, and
+    # the caller falls back to the first eight words of the transcript — which
+    # reads as "the app didn't name my video". The model is usually just busy
+    # (avatar renders share the GPU), so retry with a longer ceiling instead of
+    # giving up on the first miss.
+    attempts = [LLM_META_TIMEOUT, LLM_META_TIMEOUT * 2]
+    for i, timeout in enumerate(attempts, 1):
+        try:
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/chat", data=body,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read())
+            meta = json.loads(data["message"]["content"])
+            title = str(meta.get("title", "")).strip()[:120]
+            concepts = meta.get("concepts")
+            flags = meta.get("flags")
+            return {
+                "title": title or None,
+                "summary": str(meta.get("summary", "")).strip()[:300] or None,
+                "mood": str(meta.get("mood", "")).strip().lower()[:24] or None,
+                "concepts": concepts if isinstance(concepts, list) else [],
+                "flags": flags if isinstance(flags, list) else [],
+            }
+        except Exception as e:  # noqa: BLE001 — metadata is best-effort
+            last = i == len(attempts)
+            print(
+                f"[worker] llm metadata attempt {i}/{len(attempts)} failed "
+                f"({timeout}s): {e}" + ("" if last else " — retrying"),
+                flush=True,
+            )
+            if last:
+                print(
+                    "[worker] llm metadata skipped; entry keeps its fallback "
+                    "title and will be picked up by retitle_pending()",
+                    flush=True,
+                )
+                return None
+            time.sleep(15)
+    return None
+
+
+def retitle_pending(conn, limit: int = 20) -> int:
+    """Re-run metadata for indexed entries whose LLM pass never landed.
+
+    A NULL summary on an indexed entry is the reliable tell: title, summary and
+    mood all come from the same call, so if summary is missing the entry is
+    wearing a first-eight-words fallback title. Safe to run repeatedly.
+    """
+    rows = conn.execute(
+        """SELECT e.id,
+                  string_agg(s.text, ' ' ORDER BY s.idx) AS transcript
+             FROM entries e JOIN segments s ON s.entry_id = e.id
+            WHERE e.user_id = %s AND e.deleted_at IS NULL
+              AND e.status = 'indexed' AND e.summary IS NULL
+            GROUP BY e.id
+            LIMIT %s""",
+        (USER_ID, limit),
+    ).fetchall()
+
+    fixed = 0
+    for entry_id, transcript in rows:
+        if not transcript or len(transcript.split()) < 5:
+            continue
+        meta = llm_metadata(transcript)
+        if not meta or not (meta.get("title") or meta.get("summary")):
+            print(f"[worker] retitle: still failing for {entry_id}", flush=True)
+            continue
+        conn.execute(
+            """UPDATE entries
+                  SET title = COALESCE(%s, title),
+                      summary = COALESCE(%s, summary),
+                      mood = COALESCE(%s, mood)
+                WHERE id = %s""",
+            (meta.get("title"), meta.get("summary"), meta.get("mood"), entry_id),
         )
-        with urllib.request.urlopen(req, timeout=180) as resp:
-            data = json.loads(resp.read())
-        meta = json.loads(data["message"]["content"])
-        title = str(meta.get("title", "")).strip()[:120]
-        concepts = meta.get("concepts")
-        flags = meta.get("flags")
-        return {
-            "title": title or None,
-            "summary": str(meta.get("summary", "")).strip()[:300] or None,
-            "mood": str(meta.get("mood", "")).strip().lower()[:24] or None,
-            "concepts": concepts if isinstance(concepts, list) else [],
-            "flags": flags if isinstance(flags, list) else [],
-        }
-    except Exception as e:  # noqa: BLE001 — metadata is best-effort
-        print(f"[worker] llm metadata skipped: {e}", flush=True)
-        return None
+        conn.commit()
+        fixed += 1
+        print(f"[worker] retitled {entry_id}: {meta.get('title')!r}", flush=True)
+    return fixed
 
 
 def process_live_session(conn, entry_id, media_uri):

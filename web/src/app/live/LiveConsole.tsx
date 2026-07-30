@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
-const AvatarHead = dynamic(() => import("@/components/AvatarHead"), {
+const AvatarLive = dynamic(() => import("@/components/AvatarLive"), {
   ssr: false,
   loading: () => (
     <div className="flex h-full items-center justify-center">
@@ -16,14 +16,16 @@ const AvatarHead = dynamic(() => import("@/components/AvatarHead"), {
 type Mode = "idle" | "connecting" | "live" | "ending" | "nokey" | "error";
 type Turn = { speaker: "user" | "agent"; text: string; t: number };
 type RecMode = "video" | "audio" | "off";
-type Presence = "ring" | "avatar";
+type Presence = "waveform" | "ring" | "avatar";
 type SessionMode = "converse" | "listen";
 
-// Presence surface v2 (generic 3D head) shelved by operator decision — the ring
-// holds until a Wan-Streamer-class photoreal surface is worth shipping (plan §6
-// Phase 4 watch list). Flip to re-enable the toggle; AvatarHead.tsx remains the
-// renderer boundary and needs a GLB at web/public/avatar.glb.
-const AVATAR_ENABLED = false;
+// Presence surfaces, cycled in this order:
+//   waveform — layered contours that deform per-angle on speech
+//   ring     — concentric rings that swell with level
+//   avatar   — AvatarForcing delayed-replay preview (renders each reply on the
+//              DGX at ~5x realtime — a taste test, not lip-sync)
+const AVATAR_ENABLED = true;
+const PRESENCE_ORDER: Presence[] = ["waveform", "ring", "avatar"];
 
 function fmtTimer(totalS: number) {
   const m = Math.floor(totalS / 60);
@@ -52,25 +54,39 @@ export default function LiveConsole({ sol }: { sol: number }) {
 
   const [mode, setMode] = useState<Mode>("idle");
   const [recMode, setRecMode] = useState<RecMode>("video");
-  const [presence, setPresence] = useState<Presence>("ring");
+  const [presence, setPresence] = useState<Presence>("waveform");
   const [sessionMode, setSessionMode] = useState<SessionMode>("converse");
   const sessionModeRef = useRef<SessionMode>("converse");
   const [seconds, setSeconds] = useState(0);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [cost, setCost] = useState(0);
+  const [avatarClip, setAvatarClip] = useState<string | null>(null);
+  const [avatarPending, setAvatarPending] = useState(0);
+  const agentRecRef = useRef<MediaRecorder | null>(null);
+  const agentChunksRef = useRef<Blob[]>([]);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const presenceRef = useRef<Presence>("waveform");
   const costRef = useRef(0);
   const ratesRef = useRef({ audioIn: 32, audioOut: 64, textIn: 4, textOut: 16 });
 
   useEffect(() => {
-    if (!AVATAR_ENABLED) return;
     const stored = localStorage.getItem("memento_presence");
-    if (stored === "avatar" || stored === "ring") setPresence(stored);
+    if (stored && (PRESENCE_ORDER as string[]).includes(stored)) {
+      const p = stored as Presence;
+      if (p === "avatar" && !AVATAR_ENABLED) return;
+      setPresence(p);
+      presenceRef.current = p;
+    }
   }, []);
 
   const togglePresence = () => {
-    const next: Presence = presence === "ring" ? "avatar" : "ring";
+    const cycle = AVATAR_ENABLED
+      ? PRESENCE_ORDER
+      : PRESENCE_ORDER.filter((p) => p !== "avatar");
+    const next = cycle[(cycle.indexOf(presence) + 1) % cycle.length];
     setPresence(next);
+    presenceRef.current = next;
     localStorage.setItem("memento_presence", next);
   };
 
@@ -107,40 +123,138 @@ export default function LiveConsole({ sol }: { sol: number }) {
     sample();
   };
 
-  // Presence ring — amber when the agent speaks, cyan when you do
+  // Presence surfaces, both driven by the live analyser levels. The speaker
+  // sets the hue — signal amber when the agent talks, ice when you do.
+  //   waveform: three contours deforming per-angle on a slow sum of sines
+  //   ring:     concentric rings that swell with level
   useEffect(() => {
-    if (presence !== "ring") return;
+    if (presence !== "waveform" && presence !== "ring") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx2d = canvas.getContext("2d")!;
+    const ctx2d = canvas.getContext("2d");
+    if (!ctx2d) return;
+
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const css = getComputedStyle(document.documentElement);
+    // semantic hues, literal hex and never theme-swapped
+    const SIGNAL = css.getPropertyValue("--signal").trim() || "#ff9d3d";
+    const ICE = css.getPropertyValue("--ice").trim() || "#7fd4e8";
+    const rgba = (hex: string, a: number) => {
+      const n = parseInt(hex.slice(1), 16);
+      return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+    };
+
     let raf = 0;
-    const draw = (t: number) => {
-      const { width: w, height: h } = canvas;
-      ctx2d.clearRect(0, 0, w, h);
-      const cx = w / 2;
-      const cy = h / 2;
-      const base = Math.min(w, h) * 0.22;
-      const { agent, user } = levelsRef.current;
-      for (let ring = 0; ring < 3; ring++) {
-        const wobble =
-          Math.sin(t / 900 + ring * 2.1) * 4 +
-          agent * 46 * (1 - ring * 0.25) +
-          user * 18;
+    let phase = 0;
+    let smooth = 0;
+
+    const draw = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width && rect.height) {
+        const pw = Math.round(rect.width * dpr);
+        const ph = Math.round(rect.height * dpr);
+        if (canvas.width !== pw || canvas.height !== ph) {
+          canvas.width = pw;
+          canvas.height = ph;
+        }
+        ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        const w = rect.width;
+        const h = rect.height;
+        const cx = w / 2;
+        const cy = h / 2;
+        const base = Math.min(w, h) * 0.17;
+
+        const { agent, user } = levelsRef.current;
+        const agentLed = agent >= user;
+        const lead = agentLed ? SIGNAL : ICE;
+        const outer = agentLed ? ICE : SIGNAL;
+
+        // Smooth the analyser so the surface glides with speech instead of
+        // strobing on every frame. Attack fast, release slow.
+        const target = Math.min(1, Math.max(agent, user));
+        const k = target > smooth ? 0.35 : 0.08;
+        smooth += (target - smooth) * k;
+        const level = smooth;
+
+        ctx2d.clearRect(0, 0, w, h);
+
+        // graticule, shared by both surfaces
+        ctx2d.strokeStyle = rgba(ICE, 0.07);
+        ctx2d.lineWidth = 1;
+        for (let g = 1; g <= 4; g++) {
+          ctx2d.beginPath();
+          ctx2d.arc(cx, cy, base * (0.6 + g * 0.62), 0, Math.PI * 2);
+          ctx2d.stroke();
+        }
         ctx2d.beginPath();
-        ctx2d.arc(cx, cy, base + ring * 16 + wobble, 0, Math.PI * 2);
-        const isAgent = agent >= user;
-        ctx2d.strokeStyle = isAgent
-          ? `rgba(255,180,84,${0.55 - ring * 0.16})`
-          : `rgba(89,210,222,${0.55 - ring * 0.16})`;
-        ctx2d.lineWidth = ring === 0 ? 2 : 1;
+        ctx2d.moveTo(cx - w, cy);
+        ctx2d.lineTo(cx + w, cy);
+        ctx2d.moveTo(cx, cy - h);
+        ctx2d.lineTo(cx, cy + h);
         ctx2d.stroke();
+
+        if (presence === "waveform") {
+          // Deforming contours. Swell is capped so the outer contour stays
+          // inside the panel at full volume and the inner one never collapses
+          // into the core glow.
+          const pts = 180;
+          const swell = 1 + level * 2.2;
+          for (let layer = 0; layer < 3; layer++) {
+            ctx2d.beginPath();
+            for (let i = 0; i <= pts; i++) {
+              const a = (i / pts) * Math.PI * 2;
+              const amp =
+                (Math.sin(a * 3 + phase * 1.7 + layer) * 0.038 +
+                  Math.sin(a * 7 - phase * 2.3 + layer * 2) * 0.021 +
+                  Math.sin(a * 11 + phase * 1.1) * 0.012) *
+                swell;
+              const r = base * (1 + layer * 0.34) * (1 + amp * (1 + layer * 0.5));
+              const x = cx + Math.cos(a) * r;
+              const y = cy + Math.sin(a) * r;
+              if (i === 0) ctx2d.moveTo(x, y);
+              else ctx2d.lineTo(x, y);
+            }
+            ctx2d.closePath();
+            ctx2d.strokeStyle =
+              layer === 0 ? rgba(lead, 0.85) : rgba(outer, 0.36 - layer * 0.11);
+            ctx2d.lineWidth = layer === 0 ? 1.6 : 1;
+            ctx2d.stroke();
+          }
+        } else {
+          // Concentric rings — the original surface, now smoothed and DPR-aware.
+          const gap = base * 0.34;
+          for (let r0 = 0; r0 < 3; r0++) {
+            const wobble =
+              (reduce ? 0 : Math.sin(phase * 1.6 + r0 * 2.1) * base * 0.03) +
+              level * base * 0.62 * (1 - r0 * 0.25);
+            ctx2d.beginPath();
+            ctx2d.arc(cx, cy, base + r0 * gap + wobble, 0, Math.PI * 2);
+            ctx2d.strokeStyle =
+              r0 === 0 ? rgba(lead, 0.85) : rgba(outer, 0.4 - r0 * 0.12);
+            ctx2d.lineWidth = r0 === 0 ? 2 : 1;
+            ctx2d.stroke();
+          }
+        }
+
+        // core — breathes idle, blooms on speech
+        const pulse = (reduce ? 1 : 1 + Math.sin(phase * 1.1) * 0.16) + level * 0.5;
+        const cr = base * 0.5 * pulse;
+        const core = ctx2d.createRadialGradient(cx, cy, 0, cx, cy, cr);
+        core.addColorStop(0, rgba(agentLed ? "#ffc478" : "#c8f0fa", 0.9));
+        core.addColorStop(1, rgba(lead, 0));
+        ctx2d.fillStyle = core;
+        ctx2d.beginPath();
+        ctx2d.arc(cx, cy, cr, 0, Math.PI * 2);
+        ctx2d.fill();
       }
-      ctx2d.beginPath();
-      ctx2d.arc(cx, cy, 4 + agent * 10 + user * 6, 0, Math.PI * 2);
-      ctx2d.fillStyle = agent >= user ? "#FFB454" : "#59D2DE";
-      ctx2d.fill();
+
+      // waveform drifts at roughly half the old rate; the ring keeps its own
+      if (!reduce) phase += presence === "waveform" ? 0.0045 : 0.009;
       raf = requestAnimationFrame(draw);
     };
+
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
   }, [presence]);
@@ -229,6 +343,7 @@ export default function LiveConsole({ sol }: { sol: number }) {
 
       pc.ontrack = (ev) => {
         if (audioRef.current) audioRef.current.srcObject = ev.streams[0];
+        remoteStreamRef.current = ev.streams[0];
         attachAnalyser(audioCtx, ev.streams[0], "agent");
         if (mixDestRef.current)
           audioCtx
@@ -236,11 +351,64 @@ export default function LiveConsole({ sol }: { sol: number }) {
             .connect(mixDestRef.current);
       };
 
+      const startAgentClip = () => {
+        if (presenceRef.current !== "avatar" || !remoteStreamRef.current) return;
+        if (agentRecRef.current?.state === "recording") return;
+        try {
+          const rec = new MediaRecorder(remoteStreamRef.current);
+          agentChunksRef.current = [];
+          rec.ondataavailable = (e) => {
+            if (e.data.size > 0) agentChunksRef.current.push(e.data);
+          };
+          rec.start(250);
+          agentRecRef.current = rec;
+        } catch {
+          /* capture unsupported — avatar stays on the still */
+        }
+      };
+      const finishAgentClip = () => {
+        const rec = agentRecRef.current;
+        if (!rec || rec.state !== "recording") return;
+        rec.onstop = async () => {
+          const blob = new Blob(agentChunksRef.current, { type: rec.mimeType });
+          if (blob.size < 4000 || presenceRef.current !== "avatar") return;
+          setAvatarPending((n) => n + 1);
+          try {
+            const res = await fetch("/api/avatar/render", {
+              method: "POST",
+              headers: { "Content-Type": blob.type },
+              body: blob,
+            });
+            if (res.ok && res.status === 200) {
+              const clip = await res.blob();
+              setAvatarClip((old) => {
+                if (old) URL.revokeObjectURL(old);
+                return URL.createObjectURL(clip);
+              });
+            }
+          } catch {
+            /* renderer busy or down — still image remains */
+          } finally {
+            setAvatarPending((n) => Math.max(0, n - 1));
+          }
+        };
+        rec.stop();
+        agentRecRef.current = null;
+      };
+
       const dc = pc.createDataChannel("oai-events");
       dcRef.current = dc;
       dc.onmessage = async (ev) => {
         const e = JSON.parse(ev.data);
         console.debug("[realtime]", e.type);
+        if (e.type === "output_audio_buffer.started") startAgentClip();
+        if (
+          e.type === "output_audio_buffer.stopped" ||
+          e.type === "output_audio_buffer.cleared" ||
+          e.type === "response.output_audio.done" ||
+          e.type === "response.audio.done"
+        )
+          finishAgentClip();
         if (e.type === "conversation.item.input_audio_transcription.completed") {
           pushTurn("user", e.transcript ?? "");
           // listen mode wake word: only speak when addressed by name
@@ -477,10 +645,15 @@ export default function LiveConsole({ sol }: { sol: number }) {
         >
           {presence === "avatar" ? (
             <div className="absolute inset-0">
-              <AvatarHead levelsRef={levelsRef} />
+              <AvatarLive clipUrl={avatarClip} pendingCount={avatarPending} />
             </div>
           ) : (
-            <canvas ref={canvasRef} width={640} height={400} className="h-full w-full" />
+            <canvas
+              ref={canvasRef}
+              width={640}
+              height={400}
+              className="absolute inset-0 h-full w-full"
+            />
           )}
           <audio ref={audioRef} autoPlay className="hidden" />
           <video
