@@ -216,7 +216,7 @@ template). Highlights:
 | `OLLAMA_URL` / `OLLAMA_MODEL` | Local text model (default `qwen2.5:7b`) |
 | `VISION_MODEL` | Local VLM for the visual log (qwen2.5-VL) |
 | `EMBED_MODEL` | Embedding model for search (default `nomic-embed-text`) |
-| `SEARCH_RELATED_MAX_DIST` | Cosine-distance ceiling for "similar topics" (default `0.45`; lower is stricter) |
+| `SEARCH_RELATED_MAX_DIST` | Cosine-distance ceiling for "similar topics" (default `0.33`; raise for a small journal, lower if strangers appear) |
 | `OPENAI_API_KEY` | Optional — enables live voice sessions and TTS narration |
 | `OPENAI_REALTIME_MODEL` / `REALTIME_VOICE` | Defaults `gpt-realtime` / `marin` |
 | `TTS_VOICE` | Overrides the recap narrator voice |
@@ -302,7 +302,7 @@ the nightly log warns.
     one per entry so a single video can't flood the list.
 
   Every result deep-links to the exact second (`/entry/:id?t=`). Semantic
-  neighbours must fall within `SEARCH_RELATED_MAX_DIST` (default `0.45` cosine
+  neighbours must fall within `SEARCH_RELATED_MAX_DIST` (default `0.33` cosine
   distance) — without that ceiling a nearest-neighbour query always returns its
   full limit no matter how unrelated, so searching a word the log has never
   heard would fill the screen with strangers. If Ollama is unreachable the

@@ -6,13 +6,22 @@ const EMBED_MODEL = process.env.EMBED_MODEL ?? "nomic-embed-text";
 /** Cosine-distance ceiling for a segment to count as a *related* topic.
  *
  *  Without a ceiling the nearest-neighbour query always returns its LIMIT
- *  worth of rows, however far away they are — so searching a word the log
- *  has never heard still returned a screenful of unrelated moments. Measured
- *  against nomic-embed-text: genuine topical neighbours land around
- *  0.31–0.47, while queries with no matching content bottom out at ~0.48.
- *  0.45 sits inside that gap. (worker.py uses a stricter 0.35 for
- *  near-duplicate profile facts — a different, tighter question.) */
-const RELATED_MAX_DIST = Number(process.env.SEARCH_RELATED_MAX_DIST ?? 0.45);
+ *  worth of rows however far away they are, so searching a word the log has
+ *  never heard returned a screenful of strangers.
+ *
+ *  The safe value depends on corpus size: the more segments there are, the
+ *  closer some unrelated one happens to land. Measured with nomic-embed-text,
+ *  nearest distance for pure gibberish was ~0.47 on a 90-segment corpus but
+ *  ~0.34 on a 600-segment one. 0.33 sits under the larger corpus's noise
+ *  floor, which is the conservative choice: a missing "similar topic" is a
+ *  small loss, a confidently wrong one is the bug we are fixing.
+ *
+ *  Tune with SEARCH_RELATED_MAX_DIST — raise it for a small journal, lower it
+ *  if unrelated moments start appearing. Note that segment embeddings are
+ *  currently written without nomic's "search_document: " task prefix; adding
+ *  that (and "search_query: " here) roughly tripled the signal-to-noise gap in
+ *  testing, but needs every segment re-embedded, so it is a separate change. */
+const RELATED_MAX_DIST = Number(process.env.SEARCH_RELATED_MAX_DIST ?? 0.33);
 const RELATED_LIMIT = 8;
 
 export type Hit = {
