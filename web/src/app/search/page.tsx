@@ -12,7 +12,6 @@ type Hit = {
   sol: number;
   kind: string;
   recorded_at: string;
-  distance?: number;
 };
 
 function fmtTime(s: number) {
@@ -22,12 +21,11 @@ function fmtTime(s: number) {
 }
 
 /** One result, linked to the exact second it was said. */
-function ResultRow({ hit: h, related }: { hit: Hit; related?: boolean }) {
+function ResultRow({ hit: h }: { hit: Hit }) {
   return (
     <Link
       href={`/entry/${h.entry_id}?t=${Math.max(0, Math.floor(h.t_start))}`}
       className="panel block px-4 py-3 transition-colors hover:border-[var(--line)]"
-      style={related ? { borderLeft: "2px solid var(--cyan)" } : undefined}
     >
       <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <span
@@ -62,8 +60,6 @@ type Source = {
 export default function SearchPage() {
   const [q, setQ] = useState("");
   const [matches, setMatches] = useState<Hit[]>([]);
-  const [related, setRelated] = useState<Hit[]>([]);
-  const [degraded, setDegraded] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [mode, setMode] = useState<"find" | "ask">("find");
@@ -100,7 +96,6 @@ export default function SearchPage() {
     if (debounce.current) clearTimeout(debounce.current);
     if (q.trim().length < 2) {
       setMatches([]);
-      setRelated([]);
       setSearched(false);
       return;
     }
@@ -110,8 +105,6 @@ export default function SearchPage() {
         const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
         const data = await res.json();
         setMatches(data.matches ?? []);
-        setRelated(data.related ?? []);
-        setDegraded(data.degraded);
         setSearched(true);
       } finally {
         setSearching(false);
@@ -126,7 +119,9 @@ export default function SearchPage() {
     <div className="stage-pad">
       <div className="view-hd">
         <h1>Memory Search</h1>
-        <span className="label">semantic + keyword across all transcripts</span>
+        <span className="label">
+          keyword across all transcripts · Ask searches by meaning
+        </span>
         <span className="ml-auto flex gap-2">
           <button
             className={mode === "find" ? "chip" : "chip dim"}
@@ -193,35 +188,13 @@ export default function SearchPage() {
 
       <div className="mt-5 flex flex-col gap-2" style={{ display: mode === "ask" ? "none" : undefined }}>
         {searching && <span className="label pulse">Searching the log…</span>}
-        {degraded && searched && (
-          <span className="label" style={{ color: "var(--red)" }}>
-            Semantic search offline (Ollama unreachable) — keyword results only.
-          </span>
-        )}
-        {searched && !searching && matches.length === 0 && related.length === 0 && (
+        {searched && !searching && matches.length === 0 && (
           <span className="label">No matches on record.</span>
         )}
 
         {matches.map((h) => (
-          <ResultRow key={`m:${h.entry_id}:${h.idx}`} hit={h} />
+          <ResultRow key={`${h.entry_id}:${h.idx}`} hit={h} />
         ))}
-
-        {searched && !searching && related.length > 0 && (
-          <>
-            <span
-              className="mono mt-4 text-xs"
-              style={{ color: "var(--dim)", letterSpacing: ".15em" }}
-            >
-              SIMILAR TOPICS ·{" "}
-              {matches.length === 0
-                ? "nothing in the log uses that word — closest in meaning"
-                : "close in meaning, different words"}
-            </span>
-            {related.map((h) => (
-              <ResultRow key={`r:${h.entry_id}:${h.idx}`} hit={h} related />
-            ))}
-          </>
-        )}
       </div>
     </div>
   );

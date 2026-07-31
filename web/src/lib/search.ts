@@ -3,26 +3,24 @@ import { db, USER_ID } from "@/lib/db";
 const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://localhost:11434";
 const EMBED_MODEL = process.env.EMBED_MODEL ?? "nomic-embed-text";
 
-/** Cosine-distance ceiling for a segment to count as a *related* topic.
+/** Cosine-distance ceiling on semantic neighbours used for *retrieval*.
  *
- *  Without a ceiling the nearest-neighbour query always returns its LIMIT
- *  worth of rows however far away they are, so searching a word the log has
- *  never heard returned a screenful of strangers.
+ *  /search shows literal matches only. This ceiling exists for the consumers
+ *  that still need recall from a natural-language question — Ask and the live
+ *  agent's search_journal tool — so they are not handed unrelated moments.
  *
- *  The safe value depends on corpus size: the more segments there are, the
- *  closer some unrelated one happens to land. Measured with nomic-embed-text,
- *  nearest distance for pure gibberish was ~0.47 on a 90-segment corpus but
- *  ~0.34 on a 600-segment one. 0.33 sits under the larger corpus's noise
- *  floor, which is the conservative choice: a missing "similar topic" is a
- *  small loss, a confidently wrong one is the bug we are fixing.
+ *  Without a ceiling the nearest-neighbour query returns its full LIMIT
+ *  however far away the rows are. The safe value depends on corpus size: the
+ *  more segments there are, the closer some unrelated one happens to land.
+ *  Measured with nomic-embed-text, nearest distance for pure gibberish was
+ *  ~0.47 on a 90-segment corpus but ~0.34 on a 600-segment one, so 0.33 sits
+ *  under the larger corpus's noise floor.
  *
- *  Tune with SEARCH_RELATED_MAX_DIST — raise it for a small journal, lower it
- *  if unrelated moments start appearing. Note that segment embeddings are
- *  currently written without nomic's "search_document: " task prefix; adding
- *  that (and "search_query: " here) roughly tripled the signal-to-noise gap in
- *  testing, but needs every segment re-embedded, so it is a separate change. */
-const RELATED_MAX_DIST = Number(process.env.SEARCH_RELATED_MAX_DIST ?? 0.33);
-const RELATED_LIMIT = 8;
+ *  Note: segment embeddings are written without nomic's "search_document: "
+ *  task prefix, and queries without "search_query: ". Adding both roughly
+ *  tripled the signal-to-noise gap in testing, but requires re-embedding every
+ *  segment, so it remains a separate change. */
+const SEMANTIC_MAX_DIST = Number(process.env.SEARCH_SEMANTIC_MAX_DIST ?? 0.33);
 
 export type Hit = {
   entry_id: string;
@@ -35,27 +33,20 @@ export type Hit = {
   recorded_at: string;
   /** Lexical rank — present on `matches`. */
   score?: number;
-  /** Cosine distance from the query — present on `related`. */
+  /** Cosine distance from the query — present on semantic-only entries of `hits`. */
   distance?: number;
 };
 
 export type SearchResult = {
-  /** matches followed by related: the retrieval view, for Ask and the agent tool. */
+  /** Matches plus semantic neighbours: the retrieval view, for Ask and the agent tool. */
   hits: Hit[];
-  /** Segments that actually contain the search terms. */
+  /** Segments that actually contain the search terms — this is what /search shows. */
   matches: Hit[];
-  /** Semantically near segments that do *not* contain the terms, one per entry. */
-  related: Hit[];
-  /** True when the embedding model was unreachable — `related` will be empty. */
+  /** True when the embedding model was unreachable. */
   degraded: boolean;
 };
 
-const EMPTY: SearchResult = {
-  hits: [],
-  matches: [],
-  related: [],
-  degraded: false,
-};
+const EMPTY: SearchResult = { hits: [], matches: [], degraded: false };
 
 async function embedQuery(q: string): Promise<number[] | null> {
   try {
@@ -73,12 +64,13 @@ async function embedQuery(q: string): Promise<number[] | null> {
   }
 }
 
-/** Search the log, keeping literal matches and semantic neighbours apart.
+/** Search the log.
  *
- *  Fusing the two lists (the previous behaviour) let a top-ranked semantic
- *  guess outscore a real word match, so an exact term could be pushed under
- *  moments that never used it. Lexical hits are authoritative and come first;
- *  everything merely *near* the query is reported separately as related. */
+ *  `matches` is authoritative and literal: the segment contains the terms.
+ *  Fusing semantic guesses into that list (the original behaviour) let a
+ *  top-ranked guess outscore a real word match, so an exact term could be
+ *  pushed under moments that never used it. Semantic neighbours are kept out
+ *  of `matches` entirely and only widen `hits` for the retrieval consumers. */
 export async function hybridSearch(q: string): Promise<SearchResult> {
   const query = q.trim();
   if (query.length < 2) return EMPTY;
@@ -112,8 +104,8 @@ export async function hybridSearch(q: string): Promise<SearchResult> {
                AND s.embedding IS NOT NULL
                AND (s.embedding <=> $2::vector) <= $3
              ORDER BY s.embedding <=> $2::vector
-             LIMIT 40`,
-            [USER_ID, JSON.stringify(vec), RELATED_MAX_DIST]
+             LIMIT 20`,
+            [USER_ID, JSON.stringify(vec), SEMANTIC_MAX_DIST]
           )
           .then((r) => r.rows)
       : Promise.resolve([] as Hit[]),
@@ -124,24 +116,14 @@ export async function hybridSearch(q: string): Promise<SearchResult> {
     score: Number(Number(h.score ?? 0).toFixed(5)),
   }));
 
-  // A segment already shown as a match, or any other moment from an entry
-  // that is already on screen, would just be noise under "related".
-  const matchedSegments = new Set(matches.map((h) => `${h.entry_id}:${h.idx}`));
-  const shownEntries = new Set(matches.map((h) => h.entry_id));
-
-  const related: Hit[] = [];
-  for (const h of vecRows) {
-    if (related.length >= RELATED_LIMIT) break;
-    if (matchedSegments.has(`${h.entry_id}:${h.idx}`)) continue;
-    if (shownEntries.has(h.entry_id)) continue;
-    shownEntries.add(h.entry_id);
-    related.push({ ...h, distance: Number(Number(h.distance).toFixed(3)) });
-  }
+  const seen = new Set(matches.map((h) => `${h.entry_id}:${h.idx}`));
+  const semantic = vecRows
+    .filter((h) => !seen.has(`${h.entry_id}:${h.idx}`))
+    .map((h) => ({ ...h, distance: Number(Number(h.distance).toFixed(3)) }));
 
   return {
-    hits: [...matches, ...related].slice(0, 20),
+    hits: [...matches, ...semantic].slice(0, 20),
     matches,
-    related,
     degraded: !vec,
   };
 }

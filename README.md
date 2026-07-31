@@ -52,9 +52,8 @@ conversation mode, and presence surface are all switchable before you start.
 
 ![Live console](assets/screenshots/live.png)
 
-**Memory search** — literal matches first, then *similar topics* that are close
-in meaning but never used the word. Every hit deep-links to the exact second it
-was said.
+**Memory search** — every moment that actually used the word, ranked, each one
+deep-linking to the exact second it was said.
 
 ![Memory search](assets/screenshots/search.png)
 
@@ -105,9 +104,9 @@ destroying it; purging is explicit, separate, and irreversible by design.
 - Reflection after every entry: opens and resolves threads, updates your profile.
 
 **Retrieve**
-- Hybrid semantic + keyword search with reciprocal-rank fusion.
-- **Ask** — questions answered in your journal's own words, with citations that
-  deep-link to the exact video second.
+- Literal keyword search over every transcript, deep-linked to the second.
+- **Ask** — semantic retrieval over the whole log, answered in your journal's
+  own words, with citations that deep-link to the exact video second.
 - Concept catalog, mission calendar with day reports, weekly debriefs.
 
 **Remember for you**
@@ -216,7 +215,7 @@ template). Highlights:
 | `OLLAMA_URL` / `OLLAMA_MODEL` | Local text model (default `qwen2.5:7b`) |
 | `VISION_MODEL` | Local VLM for the visual log (qwen2.5-VL) |
 | `EMBED_MODEL` | Embedding model for search (default `nomic-embed-text`) |
-| `SEARCH_RELATED_MAX_DIST` | Cosine-distance ceiling for "similar topics" (default `0.33`; raise for a small journal, lower if strangers appear) |
+| `SEARCH_SEMANTIC_MAX_DIST` | Cosine-distance ceiling on semantic neighbours used by Ask and the agent tool (default `0.33`) |
 | `OPENAI_API_KEY` | Optional — enables live voice sessions and TTS narration |
 | `OPENAI_REALTIME_MODEL` / `REALTIME_VOICE` | Defaults `gpt-realtime` / `marin` |
 | `TTS_VOICE` | Overrides the recap narrator voice |
@@ -293,20 +292,22 @@ the nightly log warns.
 
 ### Search, Ask, and the catalog
 
-- **/search** — results come back in two clearly separated groups, because
-  "contains this word" and "is about this idea" are different questions:
-  - **Matches** — segments that actually contain your terms (Postgres FTS,
-    ranked by `ts_rank`). Authoritative, and always listed first.
-  - **Similar topics** — segments that are semantically near the query but
-    never used the word (nomic-embed-text via Ollama, pgvector HNSW cosine),
-    one per entry so a single video can't flood the list.
+- **/search** — literal, and deliberately so. Results are segments that
+  actually contain your terms (Postgres FTS, ranked by `ts_rank`), each
+  deep-linking to the exact second (`/entry/:id?t=`). If the log never said the
+  word, you get nothing rather than a plausible-looking stranger.
 
-  Every result deep-links to the exact second (`/entry/:id?t=`). Semantic
-  neighbours must fall within `SEARCH_RELATED_MAX_DIST` (default `0.33` cosine
-  distance) — without that ceiling a nearest-neighbour query always returns its
-  full limit no matter how unrelated, so searching a word the log has never
-  heard would fill the screen with strangers. If Ollama is unreachable the
-  similar-topics group is simply empty and matches still work.
+  Searching used to fuse semantic guesses into this list by reciprocal rank,
+  which let a top-ranked guess outscore a real word match — and because a
+  nearest-neighbour query returns its full limit however far away the rows are,
+  a word the journal had never heard still produced a screenful of results.
+  Meaning-based lookup now lives in **Ask**, where an LLM has to justify each
+  citation, rather than in a list that looks authoritative.
+- **Ask** — still semantic: the question goes through hybrid retrieval
+  (nomic-embed-text via Ollama, pgvector HNSW cosine, bounded by
+  `SEARCH_SEMANTIC_MAX_DIST`) plus the literal matches, and the local LLM
+  answers in your journal's own words with `[n]` citations that jump to the
+  moment they came from.
 - **Find ⇄ Ask** — Ask runs the question through the same retrieval plus the
   local LLM and answers in your journal's own words, citing `[n]` sources that
   each jump to the moment they came from. Fully local, no API cost.
