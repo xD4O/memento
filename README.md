@@ -32,6 +32,7 @@ reference.
 - [Feature reference](#feature-reference)
 - [Known limits](#known-limits)
 - [Roadmap](#roadmap)
+- [License](#license)
 
 ---
 
@@ -490,3 +491,24 @@ on `America/New_York` so days group by local time.
 - Native mobile app (Expo), when the PWA's limits start to chafe.
 - The photoreal face, waiting on Wan-Streamer-class open weights; the renderer
   boundary is already in place.
+
+---
+
+## License
+
+Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+You may use, modify, and share Memento for any **noncommercial** purpose —
+personal use, hobby projects, study, research, and use by charitable,
+educational, public research, public safety, health, environmental, and
+government organizations. **Commercial use is not granted.**
+
+This is a source-available license, not an OSI-approved open source one: the
+noncommercial restriction is deliberate.
+
+Interested in a commercial license? Open an issue or reach out to
+[@xD4O](https://github.com/xD4O) — happy to talk.
+
+The license covers the code in this repository. Dependencies keep their own
+licenses (all permissive: MIT, Apache-2.0, BSD-2-Clause), and ffmpeg, Ollama,
+and the model weights are separate programs under their own terms.
