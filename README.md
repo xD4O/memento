@@ -9,7 +9,7 @@ Runs entirely on your own hardware. Transcription, embeddings, concept
 extraction, reflection, vision, and day/week reports are all local models; the
 only optional cloud call is the realtime voice session.
 
-![version](https://img.shields.io/badge/version-0.1.1-e8a33d?style=flat-square)
+![version](https://img.shields.io/badge/version-0.1.2-e8a33d?style=flat-square)
 ![stack](https://img.shields.io/badge/Next.js-16-0b7285?style=flat-square)
 ![db](https://img.shields.io/badge/Postgres_17-pgvector-336791?style=flat-square)
 ![local](https://img.shields.io/badge/inference-local-3fa46a?style=flat-square)

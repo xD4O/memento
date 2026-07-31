@@ -404,7 +404,7 @@ export default function RecordConsole({
         {mode === "requesting" && (
           <span className="label">
             Requesting {capture === "video" ? "camera + mic" : "microphone"}… if nothing
-            happens, look for the browser's permission prompt.
+            happens, look for the browser’s permission prompt.
           </span>
         )}
         {mode === "error" && (
