@@ -3,6 +3,18 @@ import { db, USER_ID } from "@/lib/db";
 const OLLAMA_URL = process.env.OLLAMA_URL ?? "http://localhost:11434";
 const EMBED_MODEL = process.env.EMBED_MODEL ?? "nomic-embed-text";
 
+/** Cosine-distance ceiling for a segment to count as a *related* topic.
+ *
+ *  Without a ceiling the nearest-neighbour query always returns its LIMIT
+ *  worth of rows, however far away they are — so searching a word the log
+ *  has never heard still returned a screenful of unrelated moments. Measured
+ *  against nomic-embed-text: genuine topical neighbours land around
+ *  0.31–0.47, while queries with no matching content bottom out at ~0.48.
+ *  0.45 sits inside that gap. (worker.py uses a stricter 0.35 for
+ *  near-duplicate profile facts — a different, tighter question.) */
+const RELATED_MAX_DIST = Number(process.env.SEARCH_RELATED_MAX_DIST ?? 0.45);
+const RELATED_LIMIT = 8;
+
 export type Hit = {
   entry_id: string;
   idx: number;
@@ -12,7 +24,28 @@ export type Hit = {
   sol: number;
   kind: string;
   recorded_at: string;
+  /** Lexical rank — present on `matches`. */
   score?: number;
+  /** Cosine distance from the query — present on `related`. */
+  distance?: number;
+};
+
+export type SearchResult = {
+  /** matches followed by related: the retrieval view, for Ask and the agent tool. */
+  hits: Hit[];
+  /** Segments that actually contain the search terms. */
+  matches: Hit[];
+  /** Semantically near segments that do *not* contain the terms, one per entry. */
+  related: Hit[];
+  /** True when the embedding model was unreachable — `related` will be empty. */
+  degraded: boolean;
+};
+
+const EMPTY: SearchResult = {
+  hits: [],
+  matches: [],
+  related: [],
+  degraded: false,
 };
 
 async function embedQuery(q: string): Promise<number[] | null> {
@@ -31,60 +64,75 @@ async function embedQuery(q: string): Promise<number[] | null> {
   }
 }
 
-/** Hybrid semantic + keyword search with reciprocal-rank fusion. */
-export async function hybridSearch(
-  q: string
-): Promise<{ hits: Hit[]; degraded: boolean }> {
-  if (q.trim().length < 2) return { hits: [], degraded: false };
-  const vec = await embedQuery(q);
+/** Search the log, keeping literal matches and semantic neighbours apart.
+ *
+ *  Fusing the two lists (the previous behaviour) let a top-ranked semantic
+ *  guess outscore a real word match, so an exact term could be pushed under
+ *  moments that never used it. Lexical hits are authoritative and come first;
+ *  everything merely *near* the query is reported separately as related. */
+export async function hybridSearch(q: string): Promise<SearchResult> {
+  const query = q.trim();
+  if (query.length < 2) return EMPTY;
 
-  const [vecHits, ftsHits] = await Promise.all([
-    vec
-      ? db
-          .query<Hit>(
-            `SELECT s.entry_id, s.idx, s.t_start, s.text,
-                    e.title, e.sol, e.kind, e.recorded_at
-             FROM segments s
-             JOIN entries e ON e.id = s.entry_id
-             WHERE e.user_id = $1 AND e.deleted_at IS NULL
-               AND s.embedding IS NOT NULL
-             ORDER BY s.embedding <=> $2::vector
-             LIMIT 20`,
-            [USER_ID, JSON.stringify(vec)]
-          )
-          .then((r) => r.rows)
-      : Promise.resolve([] as Hit[]),
+  const vec = await embedQuery(query);
+
+  const [lexRows, vecRows] = await Promise.all([
     db
       .query<Hit>(
         `SELECT s.entry_id, s.idx, s.t_start, s.text,
-                e.title, e.sol, e.kind, e.recorded_at
+                e.title, e.sol, e.kind, e.recorded_at,
+                ts_rank(s.ts, websearch_to_tsquery('english', $2)) AS score
          FROM segments s
          JOIN entries e ON e.id = s.entry_id
          WHERE e.user_id = $1 AND e.deleted_at IS NULL
            AND s.ts @@ websearch_to_tsquery('english', $2)
-         ORDER BY ts_rank(s.ts, websearch_to_tsquery('english', $2)) DESC
+         ORDER BY score DESC, s.t_start ASC
          LIMIT 20`,
-        [USER_ID, q]
+        [USER_ID, query]
       )
       .then((r) => r.rows),
+    vec
+      ? db
+          .query<Hit>(
+            `SELECT s.entry_id, s.idx, s.t_start, s.text,
+                    e.title, e.sol, e.kind, e.recorded_at,
+                    (s.embedding <=> $2::vector) AS distance
+             FROM segments s
+             JOIN entries e ON e.id = s.entry_id
+             WHERE e.user_id = $1 AND e.deleted_at IS NULL
+               AND s.embedding IS NOT NULL
+               AND (s.embedding <=> $2::vector) <= $3
+             ORDER BY s.embedding <=> $2::vector
+             LIMIT 40`,
+            [USER_ID, JSON.stringify(vec), RELATED_MAX_DIST]
+          )
+          .then((r) => r.rows)
+      : Promise.resolve([] as Hit[]),
   ]);
 
-  const scored = new Map<string, { hit: Hit; score: number }>();
-  for (const list of [vecHits, ftsHits]) {
-    list.forEach((hit, rank) => {
-      const key = `${hit.entry_id}:${hit.idx}`;
-      const prev = scored.get(key);
-      scored.set(key, {
-        hit,
-        score: (prev?.score ?? 0) + 1 / (60 + rank),
-      });
-    });
+  const matches = lexRows.map((h) => ({
+    ...h,
+    score: Number(Number(h.score ?? 0).toFixed(5)),
+  }));
+
+  // A segment already shown as a match, or any other moment from an entry
+  // that is already on screen, would just be noise under "related".
+  const matchedSegments = new Set(matches.map((h) => `${h.entry_id}:${h.idx}`));
+  const shownEntries = new Set(matches.map((h) => h.entry_id));
+
+  const related: Hit[] = [];
+  for (const h of vecRows) {
+    if (related.length >= RELATED_LIMIT) break;
+    if (matchedSegments.has(`${h.entry_id}:${h.idx}`)) continue;
+    if (shownEntries.has(h.entry_id)) continue;
+    shownEntries.add(h.entry_id);
+    related.push({ ...h, distance: Number(Number(h.distance).toFixed(3)) });
   }
 
-  const hits = [...scored.values()]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 20)
-    .map(({ hit, score }) => ({ ...hit, score: Number(score.toFixed(5)) }));
-
-  return { hits, degraded: !vec };
+  return {
+    hits: [...matches, ...related].slice(0, 20),
+    matches,
+    related,
+    degraded: !vec,
+  };
 }

@@ -12,12 +12,42 @@ type Hit = {
   sol: number;
   kind: string;
   recorded_at: string;
+  distance?: number;
 };
 
 function fmtTime(s: number) {
   const m = Math.floor(s / 60);
   const ss = Math.floor(s % 60);
   return `${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+
+/** One result, linked to the exact second it was said. */
+function ResultRow({ hit: h, related }: { hit: Hit; related?: boolean }) {
+  return (
+    <Link
+      href={`/entry/${h.entry_id}?t=${Math.max(0, Math.floor(h.t_start))}`}
+      className="panel block px-4 py-3 transition-colors hover:border-[var(--line)]"
+      style={related ? { borderLeft: "2px solid var(--cyan)" } : undefined}
+    >
+      <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span
+          className="mono text-xs"
+          style={{ color: "var(--amber)", letterSpacing: ".15em" }}
+        >
+          SOL {String(h.sol).padStart(3, "0")}
+        </span>
+        <span className="text-sm" style={{ color: "var(--text-bright)" }}>
+          {h.title ?? "Untitled entry"}
+        </span>
+        <span className="mono ml-auto text-xs" style={{ color: "var(--cyan)" }}>
+          ▶ {fmtTime(h.t_start)}
+        </span>
+      </span>
+      <p className="mt-1 text-sm" style={{ color: "var(--text)" }}>
+        “{h.text}”
+      </p>
+    </Link>
+  );
 }
 
 type Source = {
@@ -31,7 +61,8 @@ type Source = {
 
 export default function SearchPage() {
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
+  const [matches, setMatches] = useState<Hit[]>([]);
+  const [related, setRelated] = useState<Hit[]>([]);
   const [degraded, setDegraded] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -68,7 +99,8 @@ export default function SearchPage() {
     if (mode !== "find") return;
     if (debounce.current) clearTimeout(debounce.current);
     if (q.trim().length < 2) {
-      setHits([]);
+      setMatches([]);
+      setRelated([]);
       setSearched(false);
       return;
     }
@@ -77,7 +109,8 @@ export default function SearchPage() {
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
         const data = await res.json();
-        setHits(data.hits);
+        setMatches(data.matches ?? []);
+        setRelated(data.related ?? []);
         setDegraded(data.degraded);
         setSearched(true);
       } finally {
@@ -165,31 +198,30 @@ export default function SearchPage() {
             Semantic search offline (Ollama unreachable) — keyword results only.
           </span>
         )}
-        {searched && !searching && hits.length === 0 && (
+        {searched && !searching && matches.length === 0 && related.length === 0 && (
           <span className="label">No matches on record.</span>
         )}
-        {hits.map((h) => (
-          <Link
-            key={`${h.entry_id}:${h.idx}`}
-            href={`/entry/${h.entry_id}?t=${Math.max(0, Math.floor(h.t_start))}`}
-            className="panel block px-4 py-3 transition-colors hover:border-[var(--line)]"
-          >
-            <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-              <span className="mono text-xs" style={{ color: "var(--amber)", letterSpacing: ".15em" }}>
-                SOL {String(h.sol).padStart(3, "0")}
-              </span>
-              <span className="text-sm" style={{ color: "var(--text-bright)" }}>
-                {h.title ?? "Untitled entry"}
-              </span>
-              <span className="mono ml-auto text-xs" style={{ color: "var(--cyan)" }}>
-                ▶ {fmtTime(h.t_start)}
-              </span>
-            </span>
-            <p className="mt-1 text-sm" style={{ color: "var(--text)" }}>
-              “{h.text}”
-            </p>
-          </Link>
+
+        {matches.map((h) => (
+          <ResultRow key={`m:${h.entry_id}:${h.idx}`} hit={h} />
         ))}
+
+        {searched && !searching && related.length > 0 && (
+          <>
+            <span
+              className="mono mt-4 text-xs"
+              style={{ color: "var(--dim)", letterSpacing: ".15em" }}
+            >
+              SIMILAR TOPICS ·{" "}
+              {matches.length === 0
+                ? "nothing in the log uses that word — closest in meaning"
+                : "close in meaning, different words"}
+            </span>
+            {related.map((h) => (
+              <ResultRow key={`r:${h.entry_id}:${h.idx}`} hit={h} related />
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

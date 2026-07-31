@@ -52,8 +52,9 @@ conversation mode, and presence surface are all switchable before you start.
 
 ![Live console](assets/screenshots/live.png)
 
-**Memory search** — hybrid semantic + keyword retrieval across every
-transcript; each hit deep-links to the exact second it was said.
+**Memory search** — literal matches first, then *similar topics* that are close
+in meaning but never used the word. Every hit deep-links to the exact second it
+was said.
 
 ![Memory search](assets/screenshots/search.png)
 
@@ -214,6 +215,8 @@ template). Highlights:
 | `WHISPER_MODEL` / `WHISPER_DEVICE` / `WHISPER_COMPUTE` | Transcription model and placement |
 | `OLLAMA_URL` / `OLLAMA_MODEL` | Local text model (default `qwen2.5:7b`) |
 | `VISION_MODEL` | Local VLM for the visual log (qwen2.5-VL) |
+| `EMBED_MODEL` | Embedding model for search (default `nomic-embed-text`) |
+| `SEARCH_RELATED_MAX_DIST` | Cosine-distance ceiling for "similar topics" (default `0.45`; lower is stricter) |
 | `OPENAI_API_KEY` | Optional — enables live voice sessions and TTS narration |
 | `OPENAI_REALTIME_MODEL` / `REALTIME_VOICE` | Defaults `gpt-realtime` / `marin` |
 | `TTS_VOICE` | Overrides the recap narrator voice |
@@ -290,10 +293,20 @@ the nightly log warns.
 
 ### Search, Ask, and the catalog
 
-- **/search** — hybrid retrieval: semantic (nomic-embed-text via Ollama,
-  pgvector HNSW) fused with keyword (Postgres FTS) by reciprocal rank. Results
-  deep-link to the exact second (`/entry/:id?t=`). Degrades to keyword-only if
-  Ollama is down.
+- **/search** — results come back in two clearly separated groups, because
+  "contains this word" and "is about this idea" are different questions:
+  - **Matches** — segments that actually contain your terms (Postgres FTS,
+    ranked by `ts_rank`). Authoritative, and always listed first.
+  - **Similar topics** — segments that are semantically near the query but
+    never used the word (nomic-embed-text via Ollama, pgvector HNSW cosine),
+    one per entry so a single video can't flood the list.
+
+  Every result deep-links to the exact second (`/entry/:id?t=`). Semantic
+  neighbours must fall within `SEARCH_RELATED_MAX_DIST` (default `0.45` cosine
+  distance) — without that ceiling a nearest-neighbour query always returns its
+  full limit no matter how unrelated, so searching a word the log has never
+  heard would fill the screen with strangers. If Ollama is unreachable the
+  similar-topics group is simply empty and matches still work.
 - **Find ⇄ Ask** — Ask runs the question through the same retrieval plus the
   local LLM and answers in your journal's own words, citing `[n]` sources that
   each jump to the moment they came from. Fully local, no API cost.
